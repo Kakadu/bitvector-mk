@@ -1,0 +1,14 @@
+(env
+ (dev
+  (flags
+   (-strict-sequence -short-paths -strict-formats -short-paths -keep-locs -w
+     -3-9-32))))
+
+(executable
+ (name main)
+ (modules main)
+ (flags (-rectypes))
+ (libraries OCanren OCanren.tester z3)
+ (preprocess
+  (action
+   (run %{project_root}/pp_ppx/ppx_rewriter.exe %{input-file}))))

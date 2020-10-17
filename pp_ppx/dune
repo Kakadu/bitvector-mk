@@ -1,0 +1,6 @@
+(executable
+ (name ppx_rewriter)
+ (modules ppx_rewriter)
+ (flags
+  (:standard -linkall))
+ (libraries OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.all ppx_optcomp ppxlib.runner))

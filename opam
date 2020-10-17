@@ -1,0 +1,22 @@
+opam-version: "2.0"
+name: "bitvector-mk"
+version: "0.1.0"
+
+synopsis: """ Bitvectors playground"""
+maintainer: "Kakadu@pm.me"
+authors: "Kakadu@pm.me"
+license: "LGPLv3"
+homepage: "empty"
+#doc: ""
+bug-reports: "empty"
+
+depends: [
+  "ocaml" {>= "4.10.1" }
+  "OCanren" {>= "v0.0.3"}
+]
+build: [
+  ["dune" "subst"] {pinned}
+  ["dune" "build" "-p" name "-j" jobs]
+]
+run-test:
+  ["dune" "runtest" "-p" name "-j" jobs]
