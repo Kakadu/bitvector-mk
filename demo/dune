@@ -5,8 +5,8 @@
      -3-9-32))))
 
 (executable
- (name main)
- (modules main)
+ (name d)
+ (modules d)
  (flags (-rectypes))
  (libraries OCanren z3)
  (preprocess

@@ -1,0 +1,15 @@
+(env
+ (dev
+  (flags
+   (-strict-sequence -rectypes -short-paths -strict-formats -short-paths
+     -keep-locs -w -3-9-32-39))))
+
+(library
+ (name my_rewriter)
+ (modules pp)
+ (kind ppx_rewriter)
+ (ppx_runtime_libraries GT.syntax.show GT.syntax.map GT.syntax.fmt)
+ (flags
+  (:standard -linkall))
+ (libraries OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.all
+   GT.syntax.map GT.syntax.show GT.syntax.fmt ppxlib.runner))

@@ -1,3 +1,5 @@
+let flip f a b = f b a
+
 module N = struct
   type ground = GT.bool OCanren.Std.List.ground
   [@@deriving gt ~options:{ show; fmt; gmap }]
@@ -164,10 +166,34 @@ let rec inhabito r =
       fresh a (r === Ph.not a) (inhabito a);
     ]
 
-let () =
+let __ () =
   let on_ground x = Format.asprintf "%a" (GT.fmt Ph.ground) x in
-  let on_logic x = GT.show Ph.logic x in
+  let _on_logic x = GT.show Ph.logic x in
   let open OCanren in
   let open Tester in
   (* runR Ph.reify on_ground on_logic 20 q qh ("", fun q -> inhabito q) *)
   run_exn on_ground 20 q qh ("", fun q -> inhabito q)
+
+(* let () = Format.printf "%s %d\n%!" __FILE__ __LINE__ *)
+
+let () =
+  (* For initial formula I, for example
+      I === (forall x (= x x)) /\ (= (& a a) a)
+  *)
+  let on_ground x = Format.asprintf "%a" (GT.fmt Ph.ground) x in
+  let _on_logic x = GT.show Ph.logic x in
+  let open OCanren in
+  let open Tester in
+  let goal q =
+    let cutter q =
+      debug_var q (flip Ph.reify) (fun p ->
+          (* There we should encode logic formula p to SMT and check that
+              not (I <=> p) is unsat
+          *)
+          success)
+    in
+    fresh () (inhabito q) (cutter q)
+  in
+  run_exn on_ground 2 q qh ("", goal)
+
+open S

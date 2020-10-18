@@ -6,9 +6,8 @@
 
 (executable
  (name main)
- (modules main)
+ (modules main s)
  (flags (-rectypes))
  (libraries OCanren OCanren.tester z3)
  (preprocess
-  (action
-   (run %{project_root}/pp_ppx/ppx_rewriter.exe %{input-file}))))
+  (pps my_rewriter)))
