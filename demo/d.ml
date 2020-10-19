@@ -1,3 +1,5 @@
+let () = Printf.printf "\n\n%!"
+
 module M = struct
   open Z3
 
@@ -30,14 +32,14 @@ module M = struct
            (mk_not c @@ mk_or c x y);
     ]
 
-  let () =
+  let __ () =
     let open Solver in
     Solver.reset s;
     let es = ex1 () in
     List.iter (fun s -> Format.printf "%s\n%!" (Expr.to_string s)) es;
     run es
 
-  let () =
+  let __ () =
     let open Solver in
     Solver.reset s;
     (* (simplify (bvmul #x07 #x03)) ; multiplication *)
@@ -52,32 +54,7 @@ module M = struct
     let e2 = Expr.simplify e None in
     print_endline (Expr.to_string e2)
 
-  let () =
-    let open Solver in
-    Solver.reset s;
-    let e =
-      let xr = Symbol.mk_string c "x" in
-      let yr = Symbol.mk_string c "y" in
-      let x = BitVector.mk_const c xr 4 in
-      let y = BitVector.mk_const c yr 4 in
-      let types = [ BitVector.mk_sort c 4 ] in
-      (* Boolean.mk_not c *)
-      Quantifier.expr_of_quantifier
-        (Quantifier.mk_forall c types [ xr ]
-           ( Quantifier.mk_exists c types [ yr ] (BitVector.mk_ugt c y x)
-               (Some 3) [] []
-               (Some (Symbol.mk_string c "Q1"))
-               (Some (Symbol.mk_string c "skid1"))
-           (* None None *)
-           |> Z3.Quantifier.expr_of_quantifier )
-           (Some 2) [] []
-           (Some (Symbol.mk_string c "Q2"))
-           (Some (Symbol.mk_string c "skid2")) (* None None *))
-    in
-    print_endline (Expr.to_string e);
-    run [ e ]
-
-  let () =
+  let __ () =
     let open Z3 in
     let open Solver in
     let open Z3.Arithmetic in
@@ -152,5 +129,68 @@ module M = struct
         (Some (Symbol.mk_string ctx "skid2"))
     in
     Printf.printf "Quantifier Y: %s\n" (Quantifier.to_string y);
-    run [ Quantifier.expr_of_quantifier y ]
+    run [ Quantifier.expr_of_quantifier y ];
+
+    if Boolean.is_true (Quantifier.expr_of_quantifier x) then assert false
+    else if Boolean.is_false (Quantifier.expr_of_quantifier x) then assert false
+    else if Expr.is_const (Quantifier.expr_of_quantifier x) then assert false
+
+  (* unreachable *)
+
+  let __ () =
+    let open Solver in
+    let open Z3.Arithmetic in
+    Solver.reset s;
+    let e =
+      let xr = Symbol.mk_string c "x" in
+      let yr = Symbol.mk_string c "y" in
+      let x = Integer.mk_const c xr in
+      let y = Integer.mk_const c yr in
+      (* let x = FuncDecl.mk_func_decl c xr [] (Integer.mk_sort c) in
+         let y = FuncDecl.mk_func_decl c yr [] (Integer.mk_sort c) in *)
+      (* let types = [ Integer.mk_sort c; Integer.mk_sort c ] in *)
+      (* Boolean.mk_not c
+         @@ *)
+      Quantifier.expr_of_quantifier
+        (Quantifier.mk_forall_const c [ x; y ]
+           (* (mk_gt c (FuncDecl.apply y []) (FuncDecl.apply x [])) *)
+           (mk_gt c y x)
+           (* (Some 2)  *)
+           None [] []
+           (* (Some (Symbol.mk_string c "Q2"))
+              (Some (Symbol.mk_string c "skid2")) *)
+           None None)
+    in
+    print_endline (Expr.to_string e);
+    run [ e ]
+
+  let () =
+    let open Solver in
+    Solver.reset s;
+    let e =
+      let xr = Symbol.mk_string c "x" in
+      let yr = Symbol.mk_string c "y" in
+
+      let mk_const, mk_sort, mk_gt =
+        if true then
+          ( (fun c n -> BitVector.mk_const c n 4),
+            (fun c -> BitVector.mk_sort c 4),
+            BitVector.mk_ugt )
+        else
+          (* Normal numbers will not finish *)
+          ( Arithmetic.Integer.mk_const,
+            Arithmetic.Integer.mk_sort,
+            Arithmetic.mk_gt )
+      in
+      let x = mk_const c xr in
+      let y = mk_const c yr in
+      Quantifier.expr_of_quantifier
+        (Quantifier.mk_forall_const c [ x ]
+           ( Quantifier.mk_exists_const c [ y ] (mk_gt c y x) None [] [] None
+               None
+           |> Z3.Quantifier.expr_of_quantifier )
+           None [] [] None None)
+    in
+    print_endline (Expr.to_string e);
+    run [ e ]
 end

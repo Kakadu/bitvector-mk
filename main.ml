@@ -18,6 +18,17 @@ module N = struct
   let zero : injected =
     let open OCanren in
     Std.(!<(!!false))
+
+  let to_smt ctx xs =
+    let (module T), _ = S.to_z3 ctx in
+    let b = Buffer.create 20 in
+    Buffer.add_string b "#x";
+    let () =
+      List.fold_right
+        (fun n () -> Buffer.add_char b (if n then '1' else '0'))
+        xs ()
+    in
+    T.const_s (Buffer.contents b)
 end
 
 module T = struct
@@ -71,6 +82,15 @@ module T = struct
           method gmap = GT.gmap ground
         end;
     }
+
+  let to_smt ctx gr =
+    let (module T), (module P) = S.to_z3 ctx in
+    let rec helper = function
+      | Const n -> N.to_smt ctx n
+      | Add (l, r) -> assert false
+      | Mul (l, r) -> assert false
+    in
+    helper gr
 end
 
 let rec inhabito_term r =

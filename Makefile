@@ -7,7 +7,7 @@ watch:
 	dune build ./main.exe -w
 
 demo:
-	dune build demo/d.exe && dune exec demo/d.exe
+	dune build demo/d.exe && dune exec demo/d.exe  --display=quiet
 
 clean:
 	@dune clean
