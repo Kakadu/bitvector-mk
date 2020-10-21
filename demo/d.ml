@@ -164,7 +164,7 @@ module M = struct
     print_endline (Expr.to_string e);
     run [ e ]
 
-  let () =
+  let __ () =
     let open Solver in
     Solver.reset s;
     let e =
@@ -189,6 +189,27 @@ module M = struct
            ( Quantifier.mk_exists_const c [ y ] (mk_gt c y x) None [] [] None
                None
            |> Z3.Quantifier.expr_of_quantifier )
+           None [] [] None None)
+    in
+    print_endline (Expr.to_string e);
+    run [ e ]
+
+  let () =
+    let open Solver in
+    Solver.reset s;
+    let e =
+      let xr = Symbol.mk_string c "x" in
+
+      let mk_const, mk_sort, mk_gt =
+        ( (fun c n -> BitVector.mk_const c n 4),
+          (fun c -> BitVector.mk_sort c 4),
+          BitVector.mk_ugt )
+      in
+
+      let x = mk_const c xr in
+      Quantifier.expr_of_quantifier
+        (Quantifier.mk_forall_const c [ x ]
+           (mk_gt c x (Expr.mk_numeral_string c "1" (BitVector.mk_sort c 4)))
            None [] [] None None)
     in
     print_endline (Expr.to_string e);
