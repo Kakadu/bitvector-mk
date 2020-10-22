@@ -7,7 +7,9 @@ module type TERM = sig
 
   val const_s : string -> t
 
-  val band : t -> t -> t
+  val land_ : t -> t -> t
+
+  val lor_ : t -> t -> t
 
   val add : t -> t -> t
 
@@ -61,17 +63,14 @@ let z3_of_term ctx : (module TERM_Z3) =
     let var s = BitVector.mk_const ctx (Symbol.mk_string ctx s) bv_size
 
     let const n =
-      (* Format.printf "Creating const #x%X\n%!" n;
-         print_int n;
-         print_newline (); *)
       Expr.mk_numeral_string ctx (Printf.sprintf "#x%X" n)
         (BitVector.mk_sort ctx bv_size)
 
-    let const_s s =
-      (* Format.printf "mk_numeral_string `%s`\n%!" s; *)
-      Expr.mk_numeral_string ctx s (BitVector.mk_sort ctx bv_size)
+    let const_s s = Expr.mk_numeral_string ctx s (BitVector.mk_sort ctx bv_size)
 
-    let band = BitVector.mk_and ctx
+    let land_ = BitVector.mk_and ctx
+
+    let lor_ = BitVector.mk_or ctx
 
     let shl = BitVector.mk_shl ctx
 
@@ -148,7 +147,9 @@ let freevars m =
 
     let lshr = add
 
-    let band = add
+    let land_ = add
+
+    let lor_ = add
 
     let const_s _ = SS.empty
 
@@ -189,7 +190,7 @@ let ex1 =
       P.(
         conj
           (forall "y" (eq (T.var "y") (T.var "y")))
-          (eq (T.var "a") T.(band (T.var "a") (T.var "a"))))
+          (eq (T.var "a") T.(land_ (T.var "a") (T.var "a"))))
   end in
   (module M : INPUT)
 

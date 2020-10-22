@@ -82,7 +82,8 @@ module T = struct
     | Var of 'varname
     | Shl of 'self * 'self
     | Lshr of 'self * 'self
-    | Band of 'self * 'self
+    | Land of 'self * 'self
+    | Lor of 'self * 'self
     | Mul of 'self * 'self
     | Add of 'self * 'self
     | Sub of 'self * 'self
@@ -114,7 +115,9 @@ module T = struct
 
   let lshr a b = inj @@ E.distrib @@ Lshr (a, b)
 
-  let band a b = inj @@ E.distrib @@ Band (a, b)
+  let land_ a b = inj @@ E.distrib @@ Land (a, b)
+
+  let lor_ a b = inj @@ E.distrib @@ Lor (a, b)
 
   let mul a b = inj @@ E.distrib @@ Mul (a, b)
 
@@ -129,7 +132,8 @@ module T = struct
       | Add (l, r) -> Format.fprintf ppf "(bvadd %a %a)" helper l helper r
       | Sub (l, r) -> Format.fprintf ppf "(bvsub %a %a)" helper l helper r
       | Mul (l, r) -> Format.fprintf ppf "(bvmul %a %a)" helper l helper r
-      | Band (l, r) -> Format.fprintf ppf "(bvand %a %a)" helper l helper r
+      | Land (l, r) -> Format.fprintf ppf "(bvand %a %a)" helper l helper r
+      | Lor (l, r) -> Format.fprintf ppf "(bvor %a %a)" helper l helper r
       | Shl (l, r) -> Format.fprintf ppf "(bvshl %a %a)" helper l helper r
       | Lshr (l, r) -> Format.fprintf ppf "(bvlshr %a %a)" helper l helper r
     in
@@ -158,7 +162,8 @@ module T = struct
       | Mul (l, r) -> T.mul (helper l) (helper r)
       | Shl (l, r) -> T.shl (helper l) (helper r)
       | Lshr (l, r) -> T.lshr (helper l) (helper r)
-      | Band (l, r) -> T.band (helper l) (helper r)
+      | Land (l, r) -> T.land_ (helper l) (helper r)
+      | Lor (l, r) -> T.lor_ (helper l) (helper r)
     in
     helper gr
 
@@ -173,7 +178,8 @@ module T = struct
       | Value (Mul (l, r)) -> T.mul (helper l) (helper r)
       | Value (Shl (l, r)) -> T.shl (helper l) (helper r)
       | Value (Lshr (l, r)) -> T.shl (helper l) (helper r)
-      | Value (Band (l, r)) -> T.band (helper l) (helper r)
+      | Value (Land (l, r)) -> T.land_ (helper l) (helper r)
+      | Value (Lor (l, r)) -> T.lor_ (helper l) (helper r)
     in
     helper
 end
@@ -185,7 +191,8 @@ let rec inhabito_term varo =
       [
         fresh x (rez === T.const x) (inhabito_const x);
         fresh n (rez === T.var n) (varo n);
-        fresh (l r) (rez === T.band l r) (helper l) (helper r);
+        fresh (l r) (rez === T.land_ l r) (helper l) (helper r);
+        fresh (l r) (rez === T.lor_ l r) (helper l) (helper r);
         fresh (l r) (rez === T.mul l r) (helper l) (helper r);
         fresh (l r) (rez === T.sub l r) (helper l) (helper r);
         fresh (l r) (rez === T.add l r) (helper l) (helper r);
