@@ -11,3 +11,13 @@
  (libraries OCanren z3)
  (preprocess
   (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
+
+
+
+(executable
+ (name arith)
+ (modules arith)
+ (flags (-rectypes))
+ (libraries OCanren OCanren.tester)
+ (preprocess
+  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
