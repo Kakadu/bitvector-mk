@@ -3,11 +3,19 @@ open OCanren
 open OCanren.Std
 open Tester
 
+let width = 4
+
 let rec build_num =
-  function
+  let rec helper acc pos n =
+    assert (pos <= width);
+    if pos >= width then Std.list (!!) @@ Stdlib.List.rev acc
+    else helper ((n mod 2) :: acc) (pos+1) (n/2)
+  in
+  helper [] 0
+  (* function
   | 0                   -> nil()
   | n when n mod 2 == 0 -> (inj@@lift 0) % build_num (n / 2)
-  | n                   -> (inj@@lift 1) % build_num (n / 2)
+  | n                   -> (inj@@lift 1) % build_num (n / 2) *)
 
 let rec appendo l s out =
   conde [
@@ -18,16 +26,43 @@ let rec appendo l s out =
       (appendo d s res)
   ]
 
+let rec is_zero n =
+  conde
+    [ (n === List.nil())
+    ; fresh (tl)
+        (n === List.cons !!0 tl)
+        (is_zero tl)
+    ]
 
-(* REWRITE *)
-let poso q =
-  fresh (h t)
-    (q === h % t)
+let rec is_one n =
+  conde
+    [ (n === List.nil()) &&& failure
+    ; fresh (tl)
+        (n === List.cons !!1 tl)
+        (is_zero tl)
+    ]
 
-(* REWRITE *)
-let gt1o q =
-  fresh (h t tt)
-    (q === h % (t % tt))
+let rec poso n =
+  conde
+    [ (n === List.nil()) &&& failure
+    ; fresh (tl)
+        (conde
+          [ (n === List.cons !!1 tl)
+          ; (n === List.cons !!0 tl) &&& (poso tl)
+          ])
+    ]
+
+
+let rec gt1o n =
+  conde
+    [ (n === List.nil()) &&& failure
+    ; fresh (b tl)
+        (n === List.cons b tl)
+        (conde
+          [ (b === !!1)
+          ; (b === !!0) &&& (gt1o tl)
+          ])
+    ]
 
 let (!) = (!!)
 
@@ -58,10 +93,10 @@ let rec addero d n m r =
       (addero e x y z)
   in
   conde [
-    (!0 === d) &&& (nil() === m) &&& (n === r);
-    (!0 === d) &&& (nil() === n) &&& (m === r) &&& (poso m);
-    (!1 === d) &&& (nil() === m) &&& (defer (addero !0 n (!< !1) r));
-    (!1 === d) &&& (nil() === n) &&& (poso m) &&& (defer (addero !0 m (!< !1) r));
+    (!0 === d) &&& (is_zero m) &&& (n === r);
+    (!0 === d) &&& (is_zero n) &&& (m === r) &&& (poso m);
+    (!1 === d) &&& (is_zero m) &&& (defer (addero !0 n (!< !1) r));
+    (!1 === d) &&& (is_zero n) &&& (poso m) &&& (defer (addero !0 m (!< !1) r));
     ?& [
       ((!< !1) === n);
       ((!< !1) === m);
