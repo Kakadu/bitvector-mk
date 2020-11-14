@@ -332,6 +332,14 @@ let __ () =
 
 (* let () = Format.printf "%s %d\n%!" __FILE__ __LINE__ *)
 
+let trace_intermediate_candidate =
+  match Sys.getenv "MKTRACE" with
+  | exception Not_found -> fun _ -> ()
+  | _ ->
+      fun q ->
+        let () = Format.printf "@[Query:@ @[%s@]@]\n%!" (Z3.Expr.to_string q) in
+        ()
+
 let test m =
   let ctx = Z3.mk_context [] in
   let solver = Z3.Solver.mk_simple_solver ctx in
@@ -372,7 +380,7 @@ let test m =
           let candidate = Ph.to_smt_logic_exn ctx p in
           let (module F : S.FORMULA_Z3) = S.z3_of_formula ctx in
           let q = F.(not (iff candidate Z3Encoded.ph)) in
-          (* Format.printf "Query:\n%s\n%!" (Z3.Expr.to_string q); *)
+          trace_intermediate_candidate candidate;
           match Z3.Solver.check solver [ q ] with
           | Z3.Solver.UNKNOWN -> assert false
           | SATISFIABLE -> failure
@@ -382,4 +390,4 @@ let test m =
   in
   runR Ph.reify on_ground on_logic 2 q qh ("", goal)
 
-let () = test S.ex4
+let () = test S.ex6
