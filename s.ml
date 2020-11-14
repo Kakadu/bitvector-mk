@@ -1,5 +1,6 @@
 (* https://z3prover.github.io/api/html/ml/Z3.html
 *)
+
 module type TERM = sig
   type t
 
@@ -20,6 +21,27 @@ module type TERM = sig
   val shl : t -> t -> t
 
   val lshr : t -> t -> t
+end
+
+module type RICH_TERM = sig
+  include TERM
+
+  val ( + ) : t -> t -> t
+
+  val ( * ) : t -> t -> t
+
+  (* TODO: power *)
+  val i : int -> t
+end
+
+module EnrichTerm (T : TERM) : RICH_TERM with type t = T.t = struct
+  include T
+
+  let ( + ) = add
+
+  let ( * ) = mul
+
+  let i n = const_s (string_of_int n)
 end
 
 module type FORMULA = sig
@@ -44,6 +66,43 @@ module type FORMULA = sig
   val forall : string -> t -> t
 
   val exists : string -> t -> t
+end
+
+module type RICH_FORMULA = sig
+  include FORMULA
+
+  val ( == ) : term -> term -> t
+
+  val ( < ) : term -> term -> t
+
+  val ( > ) : term -> term -> t
+
+  val ( <= ) : term -> term -> t
+
+  val ( && ) : t -> t -> t
+
+  val ( || ) : t -> t -> t
+
+  val ( <=> ) : t -> t -> t
+end
+
+module EnrichFormula (F : FORMULA) :
+  RICH_FORMULA with type t = F.t and type term = F.term = struct
+  include F
+
+  let ( == ) = eq
+
+  let ( < ) = lt
+
+  let ( > ) a b = lt b a
+
+  let ( <= ) = le
+
+  let ( <=> ) = iff
+
+  let ( || ) = disj
+
+  let ( && ) = conj
 end
 
 type z3_expr = Z3.Expr.expr
@@ -223,12 +282,41 @@ let ex4 =
     let ph = P.(exists "x" T.(lt (var "a") (shl (var "b") (var "x"))))
 
     (* Идея: выкинуть младшие разряды из a и проверить, что b<>0 и a<>max_int
-        unsigned long long remove_trailing_zeroes(unsigned long long v) {
-          return v ? v / (-v & v) : v;
-        }
+         unsigned long long remove_trailing_zeroes(unsigned long long v) {
+           return v ? v / (-v & v) : v;
+         }
+
+       P.S. тут что-то дикое
     *)
   end in
   (module M : INPUT)
 
-(* https://is.muni.cz/th/ovulj/teze.pdf *)
-(* 3<a ∧ ∀x (¬(a = 2*x)) *)
+let ex5 =
+  let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
+    let info = "example5"
+
+    (* https://is.muni.cz/th/ovulj/teze.pdf *)
+    (* 3<a ∧ ∀x (¬(a = 2*x)) *)
+    let ph =
+      P.(
+        conj
+          (le (T.const_s "3") (T.var "a"))
+          (forall "x" @@ not T.(eq (var "a") T.(mul (const_s "2") (var "x")))))
+  end in
+  (module M : INPUT)
+
+let ex6 =
+  let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
+    let info = "example6: T && (T)"
+
+    module P = EnrichFormula (P)
+    module T = EnrichTerm (T)
+
+    let ph =
+      let x = T.var "x" in
+      let y = T.var "y" in
+      let head = P.(forall "x" T.(x == x)) in
+      let tail = P.(T.(x + x + x + x + x > y + y)) in
+      P.(head && tail)
+  end in
+  (module M : INPUT)
