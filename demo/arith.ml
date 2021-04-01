@@ -83,6 +83,16 @@ let create width : (module S) =
               success
           | _ -> assert false)
 
+    let trace_int n fmt =
+      debug_var n
+        (fun a b -> OCanren.reify b a)
+        (function
+          | [ n ] ->
+              Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+                (GT.show OCanren.logic (GT.show GT.int) n);
+              success
+          | _ -> assert false)
+
     (* let rec build_num =
        let rec helper acc pos n =
          assert (pos <= width);
@@ -121,10 +131,13 @@ let create width : (module S) =
       let one = Std.List.( % ) !!1 (list_inito (width - 1) !!0)
 
       (* Zero is empty list or a list of all zeros *)
-      let rec is_zero n = n === zero
+      let is_zero n = n === zero
 
-      (* One is a list which head is 1 and tils is a Zero *)
-      let rec is_one n = n === one
+      let rec all_zeros xs =
+        conde [ xs === Std.nil (); fresh tl (xs === !!0 % tl) (all_zeros tl) ]
+
+      (* One is a list which head is 1 and tail is all zeros *)
+      let is_one n = fresh tl (n === Std.List.cons !!1 tl) (all_zeros tl)
 
       let build_num n =
         let rec helper acc i n =
@@ -135,7 +148,8 @@ let create width : (module S) =
         helper (Std.List.nil ()) 0 n
 
       (* very costly implementation *)
-      let rec poso n = n =/= zero
+      (* TODO: fixme *)
+      let poso n = n =/= zero
 
       let rec has_a_one n =
         conde
@@ -174,7 +188,7 @@ let create width : (module S) =
       let gt1o q = fresh (h t tt) (q === h % (t % tt))
     end
 
-    open New
+    include New
 
     (* let is_zero q =
          let rec helper c q =
@@ -208,55 +222,59 @@ let create width : (module S) =
           !1 === b &&& (!1 === x) &&& (!1 === y) &&& (!1 === r) &&& (!1 === c);
         ]
 
-    (* carry + n + m = r *)
-    let rec addero extra_w d n m r =
-      success
-      (* &&& trace_peano extra_w "extra_w"
-         &&& trace_n n "  n" &&& trace_n m "  m" &&& trace_n r "  r" *)
+    let make_short_one w =
+      if w > 1 then Std.List.cons !!1 (list_inito (w - 1) !!0) else Std.nil ()
+
+    (* carry + n + m = r
+       extra_w is a (decreasing) number of positions left to investigate
+    *)
+    let rec addero pos car n m r =
+      let () = assert (pos > 0) in
+      success &&& trace_int !!pos "pos " &&& trace_n n "  n" &&& trace_n m "  m"
+      &&& trace_n r "  r"
       &&& conde
             [
-              extra_w === Std.Nat.zero &&& (r === zero);
-              fresh prev_w
-                (extra_w === Std.Nat.succ prev_w)
-                (msg_here __LINE__)
+              (* If we did all the work, then
+                 result is already built in it's full length *)
+              !!pos === !!0 &&& (r === Std.nil ());
+              fresh ()
+                (* (extra_w === Std.Nat.succ prev_w) *)
+                (* (msg_here __LINE__) *)
                 (conde
                    [
-                     !0 === d &&& is_zero m &&& (n === r);
-                     !0 === d &&& is_zero n &&& (m === r) &&& poso m;
-                     !1 === d &&& is_zero m
-                     &&& defer (addero extra_w !0 n one r);
-                     !1 === d &&& is_zero n &&& poso m
-                     &&& defer (addero extra_w !0 m one r);
-                     ?&[
-                         !<(!1) === n;
-                         !<(!1) === m;
-                         conde
-                           [
-                             prev_w === Nat.zero
-                             &&& fresh (a c) (!<a === r)
-                                   (full_addero d !1 !1 a c);
-                             prev_w =/= Nat.zero
-                             &&& fresh (a c)
-                                   (a %< c === r)
-                                   (full_addero d !1 !1 a c);
-                           ];
-                       ];
-                     one === n &&& gen_addero extra_w d n m r;
-                     one === m &&& gt1o n &&& gt1o r
-                     &&& defer (addero extra_w d one n r);
-                     gt1o n &&& gen_addero extra_w d n m r;
+                     !0 === car &&& all_zeros m &&& (n === r);
+                     !0 === car &&& all_zeros n &&& (m === r) &&& poso m;
+                     !1 === car &&& all_zeros m
+                     &&& defer (addero (pos - 1) !0 n (make_short_one pos) r);
+                     !1 === car &&& is_zero n &&& poso m
+                     &&& defer (addero (pos - 1) !0 m (make_short_one pos) r);
+                     fresh () (is_one n) (is_one m)
+                       (conde
+                          [
+                            !!pos === !!0
+                            &&& fresh (a temp) (!<a === r)
+                                  (full_addero car !1 !1 a temp);
+                            !!pos =/= !!0
+                            &&& fresh (a c)
+                                  (a %< c === r)
+                                  (full_addero car !1 !1 a c);
+                          ]);
+                     is_one n &&& gen_addero pos car n m r;
+                     is_one m &&& gt1o n &&& gt1o r
+                     &&& defer (addero pos car (make_short_one pos) n r);
+                     gt1o n &&& gen_addero pos car n m r;
                    ]);
             ]
 
-    and gen_addero prev_w d n m r =
+    and gen_addero pos car n m r =
+      let () = assert (pos >= 0) in
       success
-      &&& trace_peano prev_w "prev_w"
-      &&& trace_n n "  n" &&& trace_n m "  m" &&& trace_n r "  r"
+      (* &&& trace_peano prev_w "prev_w"
+         &&& trace_n n "  n" &&& trace_n m "  m" &&& trace_n r "  r" *)
       &&& conde
             [
-              prev_w === Std.Nat.zero &&& (r === zero);
+              !!pos === !!0 &&& (r === Std.nil ());
               fresh (a b c e x y z ppp)
-                (Nat.s ppp === prev_w)
                 (a % x === n)
                 (* (msg_here __LINE__) *)
                 (b % y === m)
@@ -266,13 +284,13 @@ let create width : (module S) =
                 (* (msg_here __LINE__)  *)
                 (poso z)
                 (* (msg_here __LINE__) *)
-                (full_addero d a b c e)
+                (full_addero car a b c e)
                 (* (msg_here __LINE__)  *)
-                (addero ppp e x y z);
+                (addero (pos - 1) e x y z);
             ]
 
     (* n + m = k *)
-    let pluso n m k = addero peano_width !0 n m k
+    let pluso n m k = addero width !0 n m k
 
     (* n - m = k *)
     let minuso n m k = pluso m k n
@@ -401,7 +419,7 @@ let _freeVars =
   let open M in
   let runL n = runR M.reify show show_logic n in
 
-  (* runL   22  qrs  qrsh (REPR (fun q r s   -> pluso q r s)); *)
+  runL 6 qrs qrsh (REPR (fun q r s -> pluso q r s));
   (* runL (-1) qr qrh (REPR (fun q r -> pluso q r (build_num 7))); *)
   (* runL (-1) q qh (REPR (fun q -> pluso (build_num 3) (build_num 0) q));
      runL (-1) q qh (REPR (fun q -> pluso (build_num 3) (build_num 1) q));
