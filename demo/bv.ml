@@ -326,6 +326,19 @@ let create width : (module S) =
       let zero = looks_like_zero
 
       let is_one = looks_like_one
+
+      let check_width =
+        let rec helper pos x =
+          if pos <= 0 then x === nil () else fresh (h tl) (x === h % tl) (helper (pos - 1) tl)
+        in
+        helper width
+
+      let width_is_lt =
+        let rec helper pos x =
+          if pos <= 0 then x === nil ()
+          else conde [ x === nil (); fresh (h tl) (x === h % tl) (helper (pos - 1) tl) ]
+        in
+        helper width
     end
 
     (* function that do not take to account size constraints *)
@@ -474,7 +487,7 @@ let create width : (module S) =
            &&& *)
         (* decreases on the length of N
            lengthes of M and NM are  constant *)
-        if pos <= 0 then nm === zero
+        if pos <= 0 then n === nil () &&& (nm === zero)
         else
           fresh (ntl shm2) (mul2 shiftedm shm2)
             (conde
@@ -486,7 +499,14 @@ let create width : (module S) =
                    (helper (pos - 1) ntl ~shiftedm:shm2 temp_nm);
                ])
       in
-      helper width m n nm
+      fresh () (Sizes.check_width m) (Sizes.check_width n) (Sizes.check_width nm)
+        (helper width ~shiftedm:m n nm)
+
+    let division n m q r = fresh t1 (multo m q t1) (pluso t1 r n)
+
+    let div n m q = division n m q zero
+
+    let mod_ n m r = division n m one r
 
     (*
     (* n * m === p *)

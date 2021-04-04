@@ -89,4 +89,6 @@ let _mults =
   runL 5 q qh (REPR (fun q -> mul2 (build_num 3) q));
 
   runL 5 q qh (REPR (fun q -> multo (build_num 2) (build_num 2) q));
+
+  runL (-1) qrs qrsh (REPR (fun q r s -> multo q r s));
   ()
