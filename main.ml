@@ -1,8 +1,7 @@
 let flip f a b = f b a
 
 module N = struct
-  type ground = GT.bool OCanren.Std.List.ground
-  [@@deriving gt ~options:{ show; fmt; gmap }]
+  type ground = GT.bool OCanren.Std.List.ground [@@deriving gt ~options:{ show; fmt; gmap }]
 
   type nonrec logic = GT.bool OCanren.logic OCanren.Std.List.logic
   [@@deriving gt ~options:{ show; fmt; gmap }]
@@ -22,8 +21,7 @@ module N = struct
   let int_of_ground xs =
     let _, ans =
       GT.foldl OCanren.Std.List.ground
-        (fun (base, acc) n ->
-          if n then (base * 2, base + acc) else (base * 2, acc))
+        (fun (base, acc) n -> if n then (base * 2, base + acc) else (base * 2, acc))
         (1, 0) xs
     in
     ans
@@ -61,9 +59,7 @@ module N = struct
     let acc = ref 0 in
     let module L = OCanren.Std.List in
     let rec iter base = function
-      | OCanren.Value (L.Cons (OCanren.Var _, _))
-      | Value (L.Cons (_, OCanren.Var _))
-      | Var _ ->
+      | OCanren.Value (L.Cons (OCanren.Var _, _)) | Value (L.Cons (_, OCanren.Var _)) | Var _ ->
           assert false
       | Value (L.Cons (Value n, tl)) ->
           (* Buffer.add_char b (if n then '1' else '0'); *)
@@ -97,8 +93,7 @@ module T = struct
     let fmap eta = GT.gmap t eta
   end)
 
-  type ground = (ground, N.ground, GT.string) t
-  [@@deriving gt ~options:{ show; fmt; gmap }]
+  type ground = (ground, N.ground, GT.string) t [@@deriving gt ~options:{ show; fmt; gmap }]
 
   type logic = (logic, N.logic, GT.string OCanren.logic) t OCanren.logic
   [@@deriving gt ~options:{ show; fmt; gmap }]
@@ -230,11 +225,9 @@ module Ph = struct
     let fmap eta = GT.gmap t eta
   end)
 
-  type ground = (ground, T.ground) t
-  [@@deriving gt ~options:{ show; fmt; gmap }]
+  type ground = (ground, T.ground) t [@@deriving gt ~options:{ show; fmt; gmap }]
 
-  type logic = (logic, T.logic) t OCanren.logic
-  [@@deriving gt ~options:{ show; fmt; gmap }]
+  type logic = (logic, T.logic) t OCanren.logic [@@deriving gt ~options:{ show; fmt; gmap }]
 
   let rec reify env x = E.reify reify T.reify env x
 
@@ -252,13 +245,9 @@ module Ph = struct
 
   let pp_ground : Format.formatter -> ground -> unit =
     let rec helper ppf : ground -> _ = function
-      | Eq (l, r) ->
-          Format.fprintf ppf "(= %a %a)" (GT.fmt T.ground) l (GT.fmt T.ground) r
-      | Le (l, r) ->
-          Format.fprintf ppf "(<= %a %a)" (GT.fmt T.ground) l (GT.fmt T.ground)
-            r
-      | Lt (l, r) ->
-          Format.fprintf ppf "(< %a %a)" (GT.fmt T.ground) l (GT.fmt T.ground) r
+      | Eq (l, r) -> Format.fprintf ppf "(= %a %a)" (GT.fmt T.ground) l (GT.fmt T.ground) r
+      | Le (l, r) -> Format.fprintf ppf "(<= %a %a)" (GT.fmt T.ground) l (GT.fmt T.ground) r
+      | Lt (l, r) -> Format.fprintf ppf "(< %a %a)" (GT.fmt T.ground) l (GT.fmt T.ground) r
       | Conj (l, r) -> Format.fprintf ppf "(and %a %a)" helper l helper r
       | Disj (l, r) -> Format.fprintf ppf "(or %a %a)" helper l helper r
       | Not l -> Format.fprintf ppf "(not %a)" helper l
@@ -327,8 +316,7 @@ let __ () =
   let open OCanren in
   let open Tester in
   (* runR Ph.reify on_ground on_logic 20 q qh ("", fun q -> inhabito q) *)
-  run_exn on_ground 20 q qh
-    ("", fun q -> inhabito (inhabito_term (fun _ -> failure)) q)
+  run_exn on_ground 20 q qh ("", fun q -> inhabito (inhabito_term (fun _ -> failure)) q)
 
 (* let () = Format.printf "%s %d\n%!" __FILE__ __LINE__ *)
 
@@ -360,10 +348,7 @@ let test m =
     match S.SS.to_seq free |> List.of_seq with
     | [] -> fun _ -> failure
     | h :: tl ->
-        List.fold_left
-          (fun relo name q -> conde [ q === !!name; relo q ])
-          (fun q -> q === !!h)
-          tl
+        List.fold_left (fun relo name q -> conde [ q === !!name; relo q ]) (fun q -> q === !!h) tl
   in
 
   let on_ground x = Format.asprintf "%a" (GT.fmt Ph.ground) x in

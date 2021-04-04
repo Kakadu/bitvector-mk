@@ -1,29 +1,46 @@
 (env
- (dev
+ (_
   (flags
-   (-strict-sequence -short-paths -strict-formats -short-paths -keep-locs -w
-     -3-9-32))))
+   (:standard -short-paths -rectypes
+    -w -3-9-32))))
+
+(library
+ (name bv)
+ (modules bv)
+ (flags (-rectypes))
+ (libraries OCanren OCanren.tester)
+ (preprocess
+  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx ppx_optcomp)))
+
+(executable
+ (name bv_demo)
+ (modules bv_demo)
+ (flags (-rectypes))
+ (libraries OCanren OCanren.tester bv)
+ (preprocess
+  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
+
+(library
+ (name arithOleg)
+ (modules arithOleg)
+ (flags (-rectypes))
+ (libraries OCanren OCanren.tester)
+ (preprocess
+  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
+
+(executable
+ (name arith_demo)
+ (modules arith_demo)
+ (flags (-rectypes))
+ (libraries OCanren OCanren.tester arithOleg)
+ (preprocess
+  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
+
 
 (executable
  (name d)
  (modules d)
  (flags (-rectypes))
  (libraries OCanren z3)
- (preprocess
-  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
-
-(executable
- (name arith)
- (modules arith)
- (flags (-rectypes))
- (libraries OCanren OCanren.tester)
- (preprocess
-  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
-
-(executable
- (name arith2)
- (modules arith2)
- (flags (-rectypes))
- (libraries OCanren OCanren.tester)
  (preprocess
   (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
