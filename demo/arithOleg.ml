@@ -1,3 +1,7 @@
+(* http://okmij.org/ftp/Prolog/Arithm/pure-bin-arithm.prl
+ *
+ *)
+
 open Printf
 open OCanren
 open OCanren.Std

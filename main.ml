@@ -367,9 +367,11 @@ let test m =
           let q = F.(not (iff candidate Z3Encoded.ph)) in
           trace_intermediate_candidate candidate;
           match Z3.Solver.check solver [ q ] with
-          | Z3.Solver.UNKNOWN -> assert false
-          | SATISFIABLE -> failure
-          | UNSATISFIABLE -> success)
+          | Z3.Solver.UNKNOWN -> failwith "Solver should not return UNKNOWN result"
+          | UNSATISFIABLE -> success
+          | SATISFIABLE ->
+              let model = Z3.Solver.get_model solver |> Option.get in
+              success)
     in
     fresh () (inhabito (inhabito_term varo) q) (cutter q)
   in
