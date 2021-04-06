@@ -307,7 +307,7 @@ let ex5 =
 
 let ex6 =
   let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
-    let info = "example6: T && (T)"
+    let info = "example6: (forall x . x=x) && (x+x+x+x+x > y+y)"
 
     module P = EnrichFormula (P)
     module T = EnrichTerm (T)

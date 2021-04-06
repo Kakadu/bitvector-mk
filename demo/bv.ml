@@ -7,30 +7,66 @@ open Tester
 
 [%%undef TRACE]
 
-module type S = sig
-  open OCanren
-
+module Repr = struct
   type e = int
 
   type g = e Std.List.ground
 
   type l = e logic Std.List.logic
 
-  (* It seems we can't hide these types because unufucation with a variable requires l to be seen
+  (* It seems we can't hide these types because
+     unifucation with a variable requires l to be seen
      as _ logic in the second type parameter
   *)
 
   type n = (g, l) injected
 
-  (* type injected = n *)
+  type injected = n
 
-  val reify : OCanren.Env.t -> n -> l
+  let reify = List.reify OCanren.reify
 
-  val show : g -> string
+  let show xs = GT.(show List.ground @@ show int) xs
+
+  let show_logic = GT.(show List.logic @@ show logic @@ show int)
+
+  let g =
+    {
+      GT.gcata = ();
+      (* (fun tr _ _ -> assert false); *)
+      GT.fix = ();
+      (* (fun _ _ -> assert false); *)
+      GT.plugins =
+        object
+          method show = show
+
+          method gmap = Fun.id
+
+          method fmt ppf x = Format.fprintf ppf "%s" (show x)
+        end;
+    }
+
+  let l =
+    {
+      GT.gcata = ();
+      (* (fun tr _ _ -> assert false); *)
+      GT.fix = ();
+      (* (fun _ _ -> assert false); *)
+      GT.plugins =
+        object
+          method show = show_logic
+
+          method gmap = Fun.id
+
+          method fmt ppf x = Format.fprintf ppf "%s" (show_logic x)
+        end;
+    }
+end
+
+module type S = sig
+  open Repr
+  open OCanren
 
   val show_binary : g -> string
-
-  val show_logic : l -> string
 
   val build_num : int -> n
 
@@ -38,7 +74,7 @@ module type S = sig
 
   val mul2 : n -> n -> goal
 
-  val pluso : n -> n -> n -> goal
+  val addo : n -> n -> n -> goal
   (*
   val gen_addero : int -> (int, int logic) OCanren.injected ->
       n -> n -> n -> goal
@@ -47,17 +83,33 @@ module type S = sig
       n -> n -> n -> goal
  *)
 
-  val minuso : n -> n -> n -> goal
+  val subo : n -> n -> n -> goal
 
   val multo : n -> n -> n -> goal
+
+  val shiftl1 : n -> n -> goal
+
+  val lshiftr1 : n -> n -> goal
+
+  val ashiftr1 : n -> n -> goal
+
+  val ashiftro : n -> n -> n -> goal
+
+  val lshiftro : n -> n -> n -> goal
+
+  val shiftlo : n -> n -> n -> goal
 
   val rotl : n -> n -> goal
 
   val rotr : n -> n -> goal
 
-  val shiftl : n -> n -> goal
+  val loro : n -> n -> n -> goal
 
-  val lshiftr : n -> n -> goal
+  val lando : n -> n -> n -> goal
+
+  val lto : n -> n -> goal
+
+  val leo : n -> n -> goal
 
   val width : int
 end
@@ -65,20 +117,16 @@ end
 let create width : (module S) =
   let module M = struct
     open OCanren
+    include Repr
+    (* type e = int
 
-    type e = int
+       type g = e Std.List.ground
 
-    type g = e Std.List.ground
+       type l = e logic Std.List.logic
 
-    type l = e logic Std.List.logic
+       type n = (e, e logic) OCanren.Std.List.groundi
 
-    type n = (e, e logic) OCanren.Std.List.groundi
-
-    type injected = n
-
-    let reify = List.reify OCanren.reify
-
-    let show xs = GT.(show List.ground @@ show int) xs
+       type injected = n *)
 
     let show_binary (xs : g) =
       let b = Buffer.create (width + 4) in
@@ -88,10 +136,6 @@ let create width : (module S) =
         (fun () -> function 0 -> add '0' | 1 -> add '1' | _ -> assert false)
         () xs;
       Buffer.contents b
-
-    (* GT.(show List.ground @@ show int) xs *)
-
-    let show_logic = GT.(show List.logic @@ show logic @@ show int)
 
     let width = width
 
@@ -122,7 +166,8 @@ let create width : (module S) =
         (fun a b -> Std.Nat.reify b a)
         (function
           | [ n ] ->
-              Format.printf "%s: %s\n%!" (Format.asprintf fmt) (GT.show Std.Nat.logic n);
+              Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+                (GT.show Std.Nat.logic n);
               success
           | _ -> assert false)
 
@@ -150,7 +195,10 @@ let create width : (module S) =
 
       let list_inito len x =
         let open OCanren.Std in
-        let rec helper acc = function 0 -> acc | n -> helper (x % acc) (n - 1) in
+        let rec helper acc = function
+          | 0 -> acc
+          | n -> helper (x % acc) (n - 1)
+        in
         helper (List.nil ()) len
 
       let zero = list_inito width !!0
@@ -160,7 +208,8 @@ let create width : (module S) =
       (* Zero is empty list or a list of all zeros *)
       let is_zero n = n === zero
 
-      let rec all_zeros xs = conde [ xs === Std.nil (); fresh tl (xs === !!0 % tl) (all_zeros tl) ]
+      let rec all_zeros xs =
+        conde [ xs === Std.nil (); fresh tl (xs === !!0 % tl) (all_zeros tl) ]
 
       (* One is a list which head is 1 and tail is all zeros *)
       let is_one n = fresh tl (n === Std.List.cons !!1 tl) (all_zeros tl)
@@ -168,7 +217,8 @@ let create width : (module S) =
       let build_num n =
         let rec helper i n =
           let b = n mod 2 in
-          if i >= width then Std.nil () else Std.List.cons !!b (helper (1 + i) (n / 2))
+          if i >= width then Std.nil ()
+          else Std.List.cons !!b (helper (1 + i) (n / 2))
         in
         helper 0 n
 
@@ -176,7 +226,8 @@ let create width : (module S) =
         let build n =
           let rec helper i n =
             let b = n mod 2 in
-            if i >= width then [] else Stdlib.List.cons b (helper (1 + i) (n / 2))
+            if i >= width then []
+            else Stdlib.List.cons b (helper (1 + i) (n / 2))
           in
           helper 0 n
         (*
@@ -195,11 +246,17 @@ let create width : (module S) =
         conde
           [
             n === Std.List.nil () &&& failure;
-            fresh (h tl) (n === List.cons h tl) (conde [ h === !!1; h === !!0 &&& has_a_one tl ]);
+            fresh (h tl)
+              (n === List.cons h tl)
+              (conde [ h === !!1; h === !!0 &&& has_a_one tl ]);
           ]
 
       let gt1o n =
-        conde [ n === List.nil () &&& failure; fresh (b tl) (n === List.cons b tl) (has_a_one tl) ]
+        conde
+          [
+            n === List.nil () &&& failure;
+            fresh (b tl) (n === List.cons b tl) (has_a_one tl);
+          ]
     end
 
     module Old = struct
@@ -240,7 +297,9 @@ let create width : (module S) =
 
     let of_e e ans =
       assert (width > 1);
-      let rec helper pos acc = if pos <= 0 then acc else helper (pos - 1) (!!0 % acc) in
+      let rec helper pos acc =
+        if pos <= 0 then acc else helper (pos - 1) (!!0 % acc)
+      in
       ans === e % helper (width - 1) (Std.nil ())
 
     (* Call [full_addero b x y r c] adds y to x with carry bit [b]
@@ -262,7 +321,8 @@ let create width : (module S) =
         ]
 
     let make_short_one w =
-      if w > 1 then Std.List.cons !!1 (list_inito (w - 1) !!0) else Std.(!<(!!1))
+      if w > 1 then Std.List.cons !!1 (list_inito (w - 1) !!0)
+      else Std.(!<(!!1))
 
     let make_short_zero w =
       assert (w >= 0);
@@ -282,7 +342,10 @@ let create width : (module S) =
 
     let looks_like_one ~pos n =
       if pos <= 0 then failure
-      else fresh tl (n === Std.List.cons !!1 tl) (looks_like_zero ~pos:(pos - 1) tl)
+      else
+        fresh tl
+          (n === Std.List.cons !!1 tl)
+          (looks_like_zero ~pos:(pos - 1) tl)
 
     (* Very similar to concept of `positive` number *)
     let rec has_ones_inside ~pos n =
@@ -292,14 +355,21 @@ let create width : (module S) =
       else
         fresh tl
           (if pos = 1 then tl === Std.nil () else success)
-          (conde [ n === !!1 % tl; n === !!0 % tl &&& has_ones_inside ~pos:(pos - 1) tl ])
+          (conde
+             [
+               n === !!1 % tl;
+               n === !!0 % tl &&& has_ones_inside ~pos:(pos - 1) tl;
+             ])
 
     let looks_like_gt1o ~pos n =
       match pos with
       | 0 -> failure
       | x when x < 0 -> assert false
       | 1 -> failure
-      | wide -> fresh (h tl) (List.cons h tl === n) (has_ones_inside ~pos:(wide - 1) tl)
+      | wide ->
+          fresh (h tl)
+            (List.cons h tl === n)
+            (has_ones_inside ~pos:(wide - 1) tl)
 
     let rec looks_like_poso ~pos n =
       match pos with
@@ -329,14 +399,19 @@ let create width : (module S) =
 
       let check_width =
         let rec helper pos x =
-          if pos <= 0 then x === nil () else fresh (h tl) (x === h % tl) (helper (pos - 1) tl)
+          if pos <= 0 then x === nil ()
+          else fresh (h tl) (x === h % tl) (helper (pos - 1) tl)
         in
         helper width
 
       let width_is_lt =
         let rec helper pos x =
           if pos <= 0 then x === nil ()
-          else conde [ x === nil (); fresh (h tl) (x === h % tl) (helper (pos - 1) tl) ]
+          else
+            conde
+              [
+                x === nil (); fresh (h tl) (x === h % tl) (helper (pos - 1) tl);
+              ]
         in
         helper width
     end
@@ -345,13 +420,15 @@ let create width : (module S) =
     module NoSize = struct
       let okay_size n =
         let rec helper sz x =
-          if sz <= 0 then x === Std.nil () else fresh (tmp tl) (x === tmp % tl) (helper (sz - 1) tl)
+          if sz <= 0 then x === Std.nil ()
+          else fresh (tmp tl) (x === tmp % tl) (helper (sz - 1) tl)
         in
         helper (2 * width) n
 
       let is_zero n =
         let rec helper sz x =
-          if sz <= 0 then success else fresh tl (x === !!0 % tl) (helper (sz - 1) tl)
+          if sz <= 0 then success
+          else fresh tl (x === !!0 % tl) (helper (sz - 1) tl)
         in
         helper width n
 
@@ -360,7 +437,10 @@ let create width : (module S) =
       let has_ones_inside =
         let rec helper sz x =
           if sz <= 0 then failure
-          else fresh (h tl) (x === h % tl) (conde [ h === !!1; h === !!0 &&& helper (sz - 1) tl ])
+          else
+            fresh (h tl)
+              (x === h % tl)
+              (conde [ h === !!1; h === !!0 &&& helper (sz - 1) tl ])
         in
         helper width
 
@@ -375,7 +455,11 @@ let create width : (module S) =
       let normalize =
         let rec helper sz n out =
           if sz <= 0 then out === Std.nil ()
-          else fresh (h1 tl1 tl2) (n === h1 % tl1) (out === h1 % tl2) (helper (sz - 1) tl1 tl2)
+          else
+            fresh (h1 tl1 tl2)
+              (n === h1 % tl1)
+              (out === h1 % tl2)
+              (helper (sz - 1) tl1 tl2)
         in
         helper width
     end
@@ -425,13 +509,18 @@ let create width : (module S) =
                        (conde
                           [
                             !!pos === !!0
-                            &&& fresh (a temp) (!<a === r) (full_addero car !1 !1 a temp);
-                            !!pos =/= !!0 &&& fresh (a c) (a %< c === r) (full_addero car !1 !1 a c);
+                            &&& fresh (a temp) (!<a === r)
+                                  (full_addero car !1 !1 a temp);
+                            !!pos =/= !!0
+                            &&& fresh (a c)
+                                  (a %< c === r)
+                                  (full_addero car !1 !1 a c);
                           ]);
                      make_short_one pos === n
                      &&& trace (msg_here __LINE__)
                      &&& gen_addero pos car n m r;
-                     make_short_one pos === m &&& looks_like_gt1o ~pos n &&& looks_like_gt1o ~pos r
+                     make_short_one pos === m &&& looks_like_gt1o ~pos n
+                     &&& looks_like_gt1o ~pos r
                      &&& trace (msg_here __LINE__)
                      &&& defer (addero pos car m n r);
                      looks_like_gt1o ~pos n
@@ -459,10 +548,10 @@ let create width : (module S) =
             ]
 
     (* n + m = k *)
-    let pluso n m k = addero width !0 n m k
+    let addo n m k = addero width !0 n m k
 
     (* n - m = k *)
-    let minuso n m k = pluso m k n
+    let subo n m k = addo m k n
 
     let rec bound_multo q p n m =
       conde
@@ -495,14 +584,15 @@ let create width : (module S) =
                  n === !!0 % ntl &&& helper (pos - 1) ntl ~shiftedm:shm2 nm;
                  fresh temp_nm
                    (n === !!1 % ntl)
-                   (pluso shiftedm temp_nm nm)
+                   (addo shiftedm temp_nm nm)
                    (helper (pos - 1) ntl ~shiftedm:shm2 temp_nm);
                ])
       in
-      fresh () (Sizes.check_width m) (Sizes.check_width n) (Sizes.check_width nm)
+      fresh () (Sizes.check_width m) (Sizes.check_width n)
+        (Sizes.check_width nm)
         (helper width ~shiftedm:m n nm)
 
-    let division n m q r = fresh t1 (multo m q t1) (pluso t1 r n)
+    let division n m q r = fresh t1 (multo m q t1) (addo t1 r n)
 
     let div n m q = division n m q zero
 
@@ -577,7 +667,7 @@ let create width : (module S) =
           (go_left_helper (pos - 1) ih itl otl last)
 
     (* arithmetical and logical shift *)
-    let shiftl n out =
+    let shiftl1 n out =
       fresh (min tl)
         (conde
            [
@@ -613,7 +703,7 @@ let create width : (module S) =
           (go_right_helper (pos - 1) oh itl otl last)
 
     (* logical shift right : put 0 to the end *)
-    let lshiftr n out =
+    let lshiftr1 n out =
       fresh (min tl)
         (conde
            [
@@ -625,7 +715,8 @@ let create width : (module S) =
            ])
 
     let rec go_right_helper2 pos next ins outs make_last =
-      if pos = 1 then fresh last (outs === !<last) (ins === !<next) (make_last next last)
+      if pos = 1 then
+        fresh last (outs === !<last) (ins === !<next) (make_last next last)
       else
         (* prev is a previous digit in result
            we should unify it *)
@@ -647,7 +738,7 @@ let create width : (module S) =
                (go_right_helper2 (width - 1) next tl otl make_last);
            ])
 
-    let ashiftr n out =
+    let ashiftr1 n out =
       let make_last = ( === ) in
       fresh (min tl)
         (conde
@@ -658,6 +749,21 @@ let create width : (module S) =
                (out === next % otl)
                (go_right_helper2 (width - 1) next tl otl make_last);
            ])
+
+    let ashiftro _ _ _ = assert false
+
+    let lshiftro _ _ _ = assert false
+
+    let shiftlo _ _ _ = assert false
+    (* Comparisons *)
+
+    let leo _ _ = assert false
+
+    let lto _ _ = assert false
+
+    let lando _ _ = assert false
+
+    let loro _ _ = assert false
   end in
   (module M : S)
 

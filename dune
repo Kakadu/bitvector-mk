@@ -1,13 +1,34 @@
 (env
  (dev
   (flags
-   (-strict-sequence -short-paths -strict-formats -short-paths -keep-locs -w
+   (:standard -strict-sequence -short-paths -strict-formats -short-paths -keep-locs -w
      -3-9-32))))
+
+
+
+(library
+ (name impl)
+ (modules EvalPh S)
+ (flags (-rectypes))
+ (libraries OCanren OCanren.tester bv z3)
+ (wrapped false)
+ (preprocess
+  (pps my_rewriter)))
+
+(executable
+ (name ph_test)
+ (modules ph_test)
+ (flags (-rectypes))
+ (libraries OCanren OCanren.tester bv)
+ (preprocess
+  (pps my_rewriter)))
+
+
 
 (executable
  (name main)
- (modules main s)
+ (modules main)
  (flags (-rectypes))
- (libraries OCanren OCanren.tester z3)
+ (libraries OCanren OCanren.tester z3 res impl bv)
  (preprocess
   (pps my_rewriter)))
