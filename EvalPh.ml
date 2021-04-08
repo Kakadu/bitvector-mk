@@ -249,6 +249,8 @@ module Ph = struct
   type logic = (logic, T.logic) t OCanren.logic
   [@@deriving gt ~options:{ show; fmt; gmap }]
 
+  type nonrec injected = (ground, logic) injected
+
   let rec reify env x = E.reify reify T.reify env x
 
   let eq a b = inj @@ E.distrib @@ Eq (a, b)
@@ -321,40 +323,65 @@ module Ph = struct
     helper
 end
 
-let evalo bv_impl inhabito =
-  let (module BV : Bv.S) = bv_impl in
-  let rec evalo ph =
+module Env = struct
+  type ground = (string * T.ground) Std.List.ground
+
+  type logic = (string OCanren.logic * T.logic) OCanren.logic Std.List.logic
+
+  type injected = (ground, logic) OCanren.injected
+
+  let reify env : injected -> logic =
+    Std.List.reify (Std.Pair.reify OCanren.reify T.reify) env
+
+  let conso name t (tail : injected) (env : injected) =
+    env === Std.List.cons (Std.Pair.pair name t) tail
+
+  let rec lookupo name (env : injected) rez =
     conde
       [
-        fresh (a b r) (ph === Ph.eq a b) (termo a r) (termo b r);
+        fresh (k1 v1 e1) (conso k1 v1 e1 env)
+          (conde
+             [
+               k1 === name &&& (rez === v1); k1 =/= name &&& lookupo name e1 rez;
+             ]);
+        env === Std.nil () &&& failure;
+      ]
+end
+
+let evalo bv_impl : Env.injected -> Ph.injected -> goal =
+  let (module BV : Bv.S) = bv_impl in
+  let rec evalo env ph =
+    conde
+      [
+        fresh (a b r) (ph === Ph.eq a b) (termo env a r) (termo env b r);
         fresh (a b a2 b2)
           (ph === Ph.lt a b)
-          (termo a (T.const a2))
-          (termo b (T.const b2))
+          (termo env a (T.const a2))
+          (termo env b (T.const b2))
           (BV.lto a2 b2);
         fresh (a b a2 b2)
           (ph === Ph.le a b)
-          (termo a (T.const a2))
-          (termo b (T.const b2))
+          (termo env a (T.const a2))
+          (termo env b (T.const b2))
           (BV.leo a2 b2);
-        fresh (a b) (ph === Ph.conj a b) (evalo a) (evalo b);
-        fresh (a b) (ph === Ph.disj a b) (evalo a) (evalo b);
-        fresh a (ph === Ph.not a) (evalo a);
+        fresh (a b) (ph === Ph.conj a b) (evalo env a) (evalo env b);
+        fresh (a b) (ph === Ph.disj a b) (evalo env a) (evalo env b);
+        fresh a (ph === Ph.not a) (evalo env a);
       ]
-  and termo (t : T.injected) (rez : T.injected) =
+  and termo env (t : T.injected) (rez : T.injected) =
     let wrap_binop top bvop =
       fresh (l r l2 r2 r0)
         (t === top l r)
         (rez === T.const r0)
-        (termo l (T.const l2))
-        (termo r (T.const r2))
+        (termo env l (T.const l2))
+        (termo env r (T.const r2))
         (bvop l2 r2 r0)
     in
     let wrap_uop uop bvop =
       fresh (l l2 r0)
         (t === uop l)
         (rez === T.const r0)
-        (termo l (T.const l2))
+        (termo env l (T.const l2))
         (bvop l2 r0)
     in
     conde
@@ -365,16 +392,7 @@ let evalo bv_impl inhabito =
         wrap_uop T.lshiftr1 BV.lshiftr1;
         wrap_uop T.shiftl1 BV.shiftl1;
         (* TODO: divo *)
-        (* wrap_uop T.sh; *)
-        (* fresh (l r) (t === T.add l r) (BV.addo l r rez);
-           fresh (l r) (t === T.sub l r) (BV.subo l r rez);
-           fresh (l r) (t === T.lor_ l r) (BV.loro l r rez);
-           fresh (l r) (t === T.land_ l r) (BV.lando l r rez);
-           fresh (l r t2 l2 r2)
-             (t === T.lshr l r)
-             (termo t t2) (termo l l2) (termo r r2) (BV.lshiftro l r t2);
-           fresh (l r t2 l2 r2) (t === T.lshl l r) (BV.lshiftl l r rez);
-           fresh (l r) (t === T.var s) (BV.lshiftl l r rez); *)
+        fresh v (t === T.var v) (Env.lookupo v env rez);
       ]
   in
   evalo
