@@ -30,6 +30,10 @@ module type RICH_TERM = sig
 
   val ( * ) : t -> t -> t
 
+  val shl1 : t -> t
+
+  val lshr1 : t -> t
+
   (* TODO: power *)
   val i : int -> t
 end
@@ -42,6 +46,10 @@ module EnrichTerm (T : TERM) : RICH_TERM with type t = T.t = struct
   let ( * ) = mul
 
   let i n = const_s (string_of_int n)
+
+  let shl1 x = shl x (i 1)
+
+  let lshr1 x = lshr x (i 1)
 end
 
 module type FORMULA = sig
@@ -317,6 +325,23 @@ let ex6 =
       let y = T.var "y" in
       let head = P.(forall "x" T.(x == x)) in
       let tail = P.(T.(x + x + x + x + x > y + y)) in
+      P.(head && tail)
+  end in
+  (module M : INPUT)
+
+let ex7 =
+  let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
+    let info = "example6: (forall x . x=x) && (x+x+x+x > y)"
+
+    (*expected answer: x << 1 << 1 > y *)
+    module P = EnrichFormula (P)
+    module T = EnrichTerm (T)
+
+    let ph =
+      let x = T.var "x" in
+      let y = T.var "y" in
+      let head = P.(forall "x" T.(x == x)) in
+      let tail = P.(T.(x + x + x + x > y)) in
       P.(head && tail)
   end in
   (module M : INPUT)

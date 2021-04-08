@@ -84,8 +84,8 @@ module T = struct
   type ('self, 'int, 'varname) t =
     | Const of 'int
     | Var of 'varname
-    | Shl of 'self * 'self
-    | Lshr of 'self * 'self
+    | Shl1 of 'self
+    | Lshr1 of 'self
     | Land of 'self * 'self
     | Lor of 'self * 'self
     | Mul of 'self * 'self
@@ -115,9 +115,9 @@ module T = struct
 
   let var s = inj @@ E.distrib @@ Var s
 
-  let shl a b : injected = inj @@ E.distrib @@ Shl (a, b)
+  let shiftl1 a : injected = inj @@ E.distrib @@ Shl1 a
 
-  let lshr a b : injected = inj @@ E.distrib @@ Lshr (a, b)
+  let lshiftr1 a : injected = inj @@ E.distrib @@ Lshr1 a
 
   let land_ a b = inj @@ E.distrib @@ Land (a, b)
 
@@ -138,8 +138,10 @@ module T = struct
       | Mul (l, r) -> Format.fprintf ppf "(bvmul %a %a)" helper l helper r
       | Land (l, r) -> Format.fprintf ppf "(bvand %a %a)" helper l helper r
       | Lor (l, r) -> Format.fprintf ppf "(bvor %a %a)" helper l helper r
-      | Shl (l, r) -> Format.fprintf ppf "(bvshl %a %a)" helper l helper r
-      | Lshr (l, r) -> Format.fprintf ppf "(bvlshr %a %a)" helper l helper r
+      | Shl1 l -> Format.fprintf ppf "(bvshl %a 1)" helper l
+      | Lshr1 l -> Format.fprintf ppf "(bvlshr %a 1)" helper l
+      (* | Shl (l, r) -> Format.fprintf ppf "(bvshl %a %a)" helper l helper r
+         | Lshr (l, r) -> Format.fprintf ppf "(bvlshr %a %a)" helper l helper r *)
     in
     helper
 
@@ -158,14 +160,18 @@ module T = struct
 
   let to_smt ctx : ground -> _ =
     let (module T), (module P) = S.to_z3 ctx in
+    (* TODO: maybe returned T should already be enriched *)
+    let module T = S.EnrichTerm (T) in
     let rec helper = function
       | Const n -> N.to_smt ctx n
       | Var s -> T.var s
       | Add (l, r) -> T.add (helper l) (helper r)
       | Sub (l, r) -> T.sub (helper l) (helper r)
       | Mul (l, r) -> T.mul (helper l) (helper r)
-      | Shl (l, r) -> T.shl (helper l) (helper r)
-      | Lshr (l, r) -> T.lshr (helper l) (helper r)
+      | Shl1 l -> T.shl1 (helper l)
+      | Lshr1 l -> T.lshr1 (helper l)
+      (* | Shl (l, r) -> T.shl (helper l) (helper r)
+         | Lshr (l, r) -> T.lshr (helper l) (helper r) *)
       | Land (l, r) -> T.land_ (helper l) (helper r)
       | Lor (l, r) -> T.lor_ (helper l) (helper r)
     in
@@ -173,6 +179,7 @@ module T = struct
 
   let to_smt_logic_exn ctx : logic -> _ =
     let (module T), _ = S.to_z3 ctx in
+    let module T = S.EnrichTerm (T) in
     let rec helper : logic -> _ = function
       | Value (Var (OCanren.Var _)) | Var _ -> failwith "logic inside"
       | Value (Const n) -> N.to_smt_logic_exn ctx n
@@ -180,8 +187,10 @@ module T = struct
       | Value (Add (l, r)) -> T.add (helper l) (helper r)
       | Value (Sub (l, r)) -> T.sub (helper l) (helper r)
       | Value (Mul (l, r)) -> T.mul (helper l) (helper r)
-      | Value (Shl (l, r)) -> T.shl (helper l) (helper r)
-      | Value (Lshr (l, r)) -> T.shl (helper l) (helper r)
+      | Value (Shl1 l) -> T.shl1 (helper l)
+      | Value (Lshr1 l) -> T.lshr1 (helper l)
+      (* | Value (Shl (l, r)) -> T.shl (helper l) (helper r)
+         | Value (Lshr (l, r)) -> T.lshr (helper l) (helper r) *)
       | Value (Land (l, r)) -> T.land_ (helper l) (helper r)
       | Value (Lor (l, r)) -> T.lor_ (helper l) (helper r)
     in
@@ -200,8 +209,8 @@ let rec inhabito_term varo =
         fresh (l r) (rez === T.mul l r) (helper l) (helper r);
         fresh (l r) (rez === T.sub l r) (helper l) (helper r);
         fresh (l r) (rez === T.add l r) (helper l) (helper r);
-        fresh (l r) (rez === T.shl l r) (helper l) (helper r);
-        fresh (l r) (rez === T.lshr l r) (helper l) (helper r);
+        fresh (l r) (rez === T.shiftl1 l) (helper l) (helper r);
+        fresh (l r) (rez === T.lshiftr1 l) (helper l) (helper r);
       ]
   in
   helper
@@ -320,27 +329,52 @@ let evalo bv_impl inhabito =
         fresh (a b r) (ph === Ph.eq a b) (termo a r) (termo b r);
         fresh (a b a2 b2)
           (ph === Ph.lt a b)
-          (termo a a2) (termo b b2) (BV.lto a2 b2);
+          (termo a (T.const a2))
+          (termo b (T.const b2))
+          (BV.lto a2 b2);
         fresh (a b a2 b2)
           (ph === Ph.le a b)
-          (termo a a2) (termo b b2) (BV.leo a2 b2);
-        fresh (a b) (ph === Ph.conj a b) (inhabito termo a) (inhabito termo b);
-        fresh (a b) (ph === Ph.disj a b) (inhabito termo a) (inhabito termo b);
-        fresh a (ph === Ph.not a) (inhabito termo a);
+          (termo a (T.const a2))
+          (termo b (T.const b2))
+          (BV.leo a2 b2);
+        fresh (a b) (ph === Ph.conj a b) (evalo a) (evalo b);
+        fresh (a b) (ph === Ph.disj a b) (evalo a) (evalo b);
+        fresh a (ph === Ph.not a) (evalo a);
       ]
-  and termo t rez =
+  and termo (t : T.injected) (rez : T.injected) =
+    let wrap_binop top bvop =
+      fresh (l r l2 r2 r0)
+        (t === top l r)
+        (rez === T.const r0)
+        (termo l (T.const l2))
+        (termo r (T.const r2))
+        (bvop l2 r2 r0)
+    in
+    let wrap_uop uop bvop =
+      fresh (l l2 r0)
+        (t === uop l)
+        (rez === T.const r0)
+        (termo l (T.const l2))
+        (bvop l2 r0)
+    in
     conde
       [
-        fresh (l r) (t === T.mul l r) (BV.multo l r rez);
-        fresh (l r) (t === T.add l r) (BV.addo l r rez);
-        fresh (l r) (t === T.sub l r) (BV.subo l r rez);
-        fresh (l r) (t === T.lor_ l r) (BV.loro l r rez);
-        fresh (l r) (t === T.land_ l r) (BV.lando l r rez);
-        fresh (l r t2 l2 r2)
-          (t === T.lshr l r)
-          (termo t t2) (termo l l2) (termo r r2) (BV.lshiftro l r t2);
-        fresh (l r t2 l2 r2) (t === T.lshl l r) (BV.lshiftl l r rez);
-        fresh (l r) (t === T.var s) (BV.lshiftl l r rez);
+        wrap_binop T.mul BV.multo;
+        wrap_binop T.add BV.addo;
+        wrap_binop T.sub BV.subo;
+        wrap_uop T.lshiftr1 BV.lshiftr1;
+        wrap_uop T.shiftl1 BV.shiftl1;
+        (* TODO: divo *)
+        (* wrap_uop T.sh; *)
+        (* fresh (l r) (t === T.add l r) (BV.addo l r rez);
+           fresh (l r) (t === T.sub l r) (BV.subo l r rez);
+           fresh (l r) (t === T.lor_ l r) (BV.loro l r rez);
+           fresh (l r) (t === T.land_ l r) (BV.lando l r rez);
+           fresh (l r t2 l2 r2)
+             (t === T.lshr l r)
+             (termo t t2) (termo l l2) (termo r r2) (BV.lshiftro l r t2);
+           fresh (l r t2 l2 r2) (t === T.lshl l r) (BV.lshiftl l r rez);
+           fresh (l r) (t === T.var s) (BV.lshiftl l r rez); *)
       ]
   in
   evalo

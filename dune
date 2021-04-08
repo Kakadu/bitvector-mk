@@ -19,7 +19,7 @@
  (name ph_test)
  (modules ph_test)
  (flags (-rectypes))
- (libraries OCanren OCanren.tester bv)
+ (libraries impl)
  (preprocess
   (pps my_rewriter)))
 
