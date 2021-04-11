@@ -479,9 +479,8 @@ let create width : (module S) =
     *)
     let rec addero pos car n m r =
       let () = assert (pos >= 0) in
-      success
-      (* &&& trace_int !!pos "pos " &&& trace_int car "car " &&& trace_n n "  n"
-         &&& trace_n m "  m" &&& trace_n r "  r" *)
+      success &&& trace_int !!pos "pos " &&& trace_int car "car "
+      &&& trace_n n "  n" &&& trace_n m "  m" &&& trace_n r "  r"
       &&& conde
             [
               (* If we did all the work, then
@@ -508,14 +507,18 @@ let create width : (module S) =
                        (n === m)
                        (conde
                           [
-                            !!pos === !!0
+                            !!pos === !!1
                             &&& fresh (a temp) (!<a === r)
                                   (full_addero car !1 !1 a temp);
-                            !!pos =/= !!0
+                            !!pos =/= !!1
                             &&& fresh (a c)
                                   (a %< c === r)
+                                  (* (make_short_zero (pos - 1) === c) *)
                                   (full_addero car !1 !1 a c);
                           ]);
+                     (* make_short_one pos === m
+                        &&& trace (msg_here __LINE__)
+                        &&& gen_addero pos car m n r; *)
                      make_short_one pos === n
                      &&& trace (msg_here __LINE__)
                      &&& gen_addero pos car n m r;
@@ -757,13 +760,42 @@ let create width : (module S) =
     let shiftlo _ _ _ = assert false
     (* Comparisons *)
 
-    let leo _ _ = assert false
+    let rec leo l r =
+      conde
+        [
+          l === Std.nil () &&& (r === l);
+          fresh (lh ltl rh rtl)
+            (l === lh % ltl)
+            (r === rh % rtl)
+            (conde
+               [
+                 lh === rh &&& leo ltl rtl;
+                 lh === !!0 &&& (rh === !!1) &&& leo ltl rtl;
+                 lh === !!1 &&& (rh === !!0) &&& failure;
+               ]);
+        ]
 
-    let lto _ _ = assert false
+    let rec lto l r =
+      conde
+        [
+          (* TODO: checking 1st conjunct could be redundant *)
+          l === Std.nil () &&& (r === l) &&& failure;
+          fresh (lh ltl rh rtl)
+            (l === lh % ltl)
+            (r === rh % rtl)
+            (conde
+               [
+                 lh === rh &&& lto ltl rtl;
+                 lh === !!1 &&& (rh === !!0) &&& lto ltl rtl;
+                 lh === !!0 &&& (rh === !!1) &&& success;
+               ]);
+        ]
 
     let lando _ _ = assert false
 
     let loro _ _ = assert false
+
+    (* let forallo q relo = leo q (build_num (count - 1)) &&& relo q *)
   end in
   (module M : S)
 

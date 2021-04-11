@@ -333,8 +333,11 @@ module Env = struct
   let reify env : injected -> logic =
     Std.List.reify (Std.Pair.reify OCanren.reify T.reify) env
 
-  let conso name t (tail : injected) (env : injected) =
-    env === Std.List.cons (Std.Pair.pair name t) tail
+  let empty : injected = Std.nil ()
+
+  let cons name t tail = Std.List.cons (Std.Pair.pair name t) tail
+
+  let conso name t (tail : injected) (env : injected) = env === cons name t tail
 
   let rec lookupo name (env : injected) rez =
     conde
@@ -344,7 +347,7 @@ module Env = struct
              [
                k1 === name &&& (rez === v1); k1 =/= name &&& lookupo name e1 rez;
              ]);
-        env === Std.nil () &&& failure;
+        env === empty &&& failure;
       ]
 end
 
