@@ -1,0 +1,8 @@
+(library
+ (name test_bv)
+ (modules Test_bv)
+ (inline_tests)
+ (libraries bv OCanren)
+ (flags (:standard -rectypes -w -33))
+ (preprocess
+  (pps ppx_expect OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh)))

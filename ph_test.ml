@@ -33,30 +33,35 @@ let __ =
   runBV (-1) q qh (REPR (fun q -> BV.lto (BV.build_num 15) (BV.build_num 7)));
   runBV (-1) q qh
     (REPR (fun q -> fresh t (BV.lshiftr1 (BV.build_num 15) t) (BV.lto q t))); *)
+
   (* runBV (-1) q qh (REPR (fun q -> BV.lto (BV.build_num 1) (BV.build_num 0)));
 
      runBV (-1) q qh (REPR (fun q -> BV.lto (BV.build_num 1) (BV.build_num 0)));
+  *)
+  runR 15 q qh
+    (REPR
+       (fun q ->
+         evalo (Env.cons !!"x" (T.const @@ BV.build_num 15) Env.empty) q));
 
-     runR 15 q qh
-       (REPR
-          (fun q ->
-            evalo (Env.cons !!"x" (T.const @@ BV.build_num 15) Env.empty) q));
+  (*
+  runS 1 q qh
+    (REPR
+       (fun s ->
+         s === !!"tautology"
+         &&& forallo (fun q ->
+                 fresh rez (BV.addo q q rez) (BV.multo q (BV.build_num 2) rez))));
+*)
 
-     runS 1 q qh
-       (REPR
-          (fun s ->
-            s === !!"tautology"
-            &&& forallo (fun q ->
-                    fresh rez (BV.addo q q rez) (BV.multo q (BV.build_num 2) rez))));
+  (*
+  runBV 15 q qh
+    (REPR
+       (fun q ->
+         fresh (r1 r2) (r1 =/= r2) (BV.addo q q r1)
+           (BV.multo q (BV.build_num 2) r2)));
+ *)
+  (* runBV 15 q qh (REPR (fun q -> BV.multo (BV.build_num 1) (BV.build_num 2) q)); *)
 
-     runBV 15 q qh
-       (REPR
-          (fun q ->
-            fresh (r1 r2) (r1 =/= r2) (BV.addo q q r1)
-              (BV.multo q (BV.build_num 2) r2)));
-
-     runBV 15 q qh (REPR (fun q -> BV.multo (BV.build_num 1) (BV.build_num 2) q)); *)
-  runBV 15 q qh (REPR (fun q -> BV.addo (BV.build_num 1) (BV.build_num 1) q));
+  (* runBV 15 q qh (REPR (fun q -> BV.addo (BV.build_num 1) (BV.build_num 1) q)); *)
 
   (* runBV 15 q qh (REPR (fun q -> q === BV.build_num 1)); *)
   ()

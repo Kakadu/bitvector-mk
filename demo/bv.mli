@@ -13,6 +13,10 @@ module Repr : sig
 
   val reify : OCanren.Env.t -> n -> l
 
+  val prjc_exn : Env.t -> injected -> g
+
+  val eq_exn : g -> g -> bool
+
   val g :
     ( unit,
       < show : g -> string
@@ -41,6 +45,8 @@ module type S = sig
   val show_binary : g -> string
 
   val build_num : int -> n
+
+  val of_int : int -> g
 
   val mod2 : n -> (e, e logic) injected -> goal
 

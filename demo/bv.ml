@@ -25,9 +25,21 @@ module Repr = struct
 
   let reify = List.reify OCanren.reify
 
+  let prjc_exn env : injected -> g =
+    List.prjc
+      (OCanren.prjc (fun _ _ -> failwith "should not happen"))
+      (fun _ _ -> failwith "should not happen")
+      env
+
   let show xs = GT.(show List.ground @@ show int) xs
 
   let show_logic = GT.(show List.logic @@ show logic @@ show int)
+
+  let rec eq_exn xs ys =
+    match (xs, ys) with
+    | Std.List.Nil, Std.List.Nil -> true
+    | Cons (h1, t1), Cons (h2, t2) -> h1 = h2 && eq_exn t1 t2
+    | _ -> failwith "eq_exn: Different length of list"
 
   let g =
     {
@@ -69,6 +81,8 @@ module type S = sig
   val show_binary : g -> string
 
   val build_num : int -> n
+
+  val of_int : int -> g
 
   val mod2 : n -> (e, e logic) injected -> goal
 
@@ -141,6 +155,16 @@ let create width : (module S) =
 
     let count = int_of_float (2. ** float_of_int width)
 
+    let of_int n : g =
+      if n >= count then failwith "of_int: argument too big"
+      else
+        let rec helper i n =
+          let b = n mod 2 in
+          if i >= width then Std.List.Nil
+          else Std.List.Cons (b, helper (1 + i) (n / 2))
+        in
+        helper 0 n
+
     let debug_n : n -> (int logic Std.List.logic list -> goal) -> goal =
      fun n -> debug_var n (fun a b -> OCanren.Std.List.reify OCanren.reify b a)
 
@@ -152,7 +176,7 @@ let create width : (module S) =
               Format.printf "%a" pp ();
               success)
 
-    let msg_here line = msg (fun ppf () -> Format.fprintf ppf "%d\n" line)
+    let msg_here line = msg (fun ppf () -> Format.fprintf ppf "%d\n%!" line)
 
     let trace_n n fmt =
       debug_n n (function
@@ -479,8 +503,9 @@ let create width : (module S) =
     *)
     let rec addero pos car n m r =
       let () = assert (pos >= 0) in
-      success &&& trace_int !!pos "pos " &&& trace_int car "car "
-      &&& trace_n n "  n" &&& trace_n m "  m" &&& trace_n r "  r"
+      trace
+        (trace_int !!pos "pos " &&& trace_int car "car " &&& trace_n n "  n"
+       &&& trace_n m "  m" &&& trace_n r "  r")
       &&& conde
             [
               (* If we did all the work, then
@@ -505,16 +530,18 @@ let create width : (module S) =
                      fresh ()
                        (make_short_one pos === n)
                        (n === m)
+                       (trace (msg_here __LINE__))
                        (conde
                           [
                             !!pos === !!1
                             &&& fresh (a temp) (!<a === r)
                                   (full_addero car !1 !1 a temp);
                             !!pos =/= !!1
-                            &&& fresh (a c)
-                                  (a %< c === r)
-                                  (* (make_short_zero (pos - 1) === c) *)
-                                  (full_addero car !1 !1 a c);
+                            &&& fresh (a c h)
+                                  (a % c === r)
+                                  (make_short_zero (pos - 1) === c)
+                                  (Std.List.hdo c h)
+                                  (full_addero car !1 !1 a h);
                           ]);
                      (* make_short_one pos === m
                         &&& trace (msg_here __LINE__)
@@ -542,7 +569,7 @@ let create width : (module S) =
               fresh (a b c e x y z ppp) (!!pos =/= !!0)
                 (a % x === n)
                 (b % y === m)
-                (looks_like_poso ~pos y)
+                (* (looks_like_poso ~pos y) *)
                 (c % z === r)
                 (* (trace_n r "  next r") *)
                 (has_ones_inside ~pos m)
