@@ -251,7 +251,7 @@ let freevars m =
 
 let ex1 =
   let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
-    let info = "example1"
+    let info = "example1: (forall y. y=y) && (a = a&a)"
 
     let ph =
       P.(
@@ -271,7 +271,7 @@ let ex2 =
 
 let ex3 =
   let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
-    let info = "example3"
+    let info = "example3: exists y. (0<=y) && (a = (1+1) << y)"
 
     let ph =
       P.(
@@ -308,7 +308,7 @@ let ex5 =
     let ph =
       P.(
         conj
-          (le (T.const_s "3") (T.var "a"))
+          (lt (T.const_s "3") (T.var "a"))
           (forall "x" @@ not T.(eq (var "a") T.(mul (const_s "2") (var "x")))))
   end in
   (module M : INPUT)
@@ -331,7 +331,7 @@ let ex6 =
 
 let ex7 =
   let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
-    let info = "example6: (forall x . x=x) && (x+x+x+x > y)"
+    let info = "example6: (forall x . x=x) && (x+x+x+x = y)"
 
     (*expected answer: x << 1 << 1 > y *)
     module P = EnrichFormula (P)
@@ -341,7 +341,7 @@ let ex7 =
       let x = T.var "x" in
       let y = T.var "y" in
       let head = P.(forall "x" T.(x == x)) in
-      let tail = P.(T.(x + x + x + x > y)) in
+      let tail = P.(T.(x + x + x + x == y)) in
       P.(head && tail)
   end in
   (module M : INPUT)

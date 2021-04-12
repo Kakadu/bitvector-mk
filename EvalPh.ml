@@ -91,7 +91,7 @@ module T = struct
     | Mul of 'self * 'self
     | Add of 'self * 'self
     | Sub of 'self * 'self
-  [@@deriving gt ~options:{ show; fmt; gmap }]
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
 
   open OCanren
 
@@ -105,7 +105,7 @@ module T = struct
   [@@deriving gt ~options:{ show; fmt; gmap }]
 
   type logic = (logic, N.logic, GT.string OCanren.logic) t OCanren.logic
-  [@@deriving gt ~options:{ show; fmt; gmap }]
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
 
   type nonrec injected = (ground, logic) injected
 
@@ -129,9 +129,23 @@ module T = struct
 
   let sub a b = inj @@ E.distrib @@ Sub (a, b)
 
-  let pp_ground : Format.formatter -> ground -> unit =
+  let inj =
+    let rec helper = function
+      | Const n -> const (Bv.Repr.inj n)
+      | Var s -> var !!s
+      | Add (l, r) -> add (helper l) (helper r)
+      | Sub (l, r) -> sub (helper l) (helper r)
+      | Mul (l, r) -> mul (helper l) (helper r)
+      | Land (l, r) -> land_ (helper l) (helper r)
+      | Lor (l, r) -> lor_ (helper l) (helper r)
+      | Shl1 l -> shiftl1 (helper l)
+      | Lshr1 l -> lshiftr1 (helper l)
+    in
+    helper
+
+  let pp : Format.formatter -> ground -> unit =
     let rec helper ppf = function
-      | Const n -> GT.fmt Bv.Repr.g ppf n
+      | Const n -> Format.fprintf ppf "%s" (Bv.Repr.show_binary n)
       | Var s -> Format.pp_print_string ppf s
       | Add (l, r) -> Format.fprintf ppf "(bvadd %a %a)" helper l helper r
       | Sub (l, r) -> Format.fprintf ppf "(bvsub %a %a)" helper l helper r
@@ -152,7 +166,7 @@ module T = struct
         object
           method show = GT.show ground
 
-          method fmt = pp_ground
+          method fmt = pp
 
           method gmap = GT.gmap ground
         end;
@@ -233,7 +247,7 @@ module Ph = struct
     | Eq of 'term * 'term
     | Lt of 'term * 'term
     | Le of 'term * 'term
-  [@@deriving gt ~options:{ show; fmt; gmap }]
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
 
   open OCanren
 
@@ -247,7 +261,7 @@ module Ph = struct
   [@@deriving gt ~options:{ show; fmt; gmap }]
 
   type logic = (logic, T.logic) t OCanren.logic
-  [@@deriving gt ~options:{ show; fmt; gmap }]
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
 
   type nonrec injected = (ground, logic) injected
 
@@ -323,6 +337,7 @@ module Ph = struct
     helper
 end
 
+(* TODO: Here environment containts terms but in practice it's likely that we will need only constants *)
 module Env = struct
   type ground = (string * T.ground) Std.List.ground
 
@@ -349,6 +364,23 @@ module Env = struct
              ]);
         env === empty &&& failure;
       ]
+
+  let inject : ground -> injected =
+    let rec helper = function
+      | Std.List.Nil -> Std.nil ()
+      | Cons ((s, t), tl) -> cons !!s (T.inj t) (helper tl)
+    in
+    helper
+
+  let pp ppf (xs : ground) =
+    Format.fprintf ppf "[ ";
+    (* let (_ : int) = GT.foldl Std.List.ground in *)
+    GT.foldl Std.List.ground
+      (fun () (name, t) -> Format.fprintf ppf "%s -> %a; " name T.pp t)
+      () xs;
+    Format.fprintf ppf "]"
+
+  let show = Format.asprintf "%a" pp
 end
 
 let evalo bv_impl : Env.injected -> Ph.injected -> goal =

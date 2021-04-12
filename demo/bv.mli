@@ -11,6 +11,8 @@ module Repr : sig
 
   type injected = n
 
+  val inj : g -> injected
+
   val reify : OCanren.Env.t -> n -> l
 
   val prjc_exn : Env.t -> injected -> g
@@ -29,11 +31,14 @@ module Repr : sig
     ( unit,
       < show : l -> string
       ; gmap : l -> l
-      ; fmt : Format.formatter -> l -> unit >,
+      ; fmt : Format.formatter -> l -> unit
+      ; foldl : 'a -> l -> 'a >,
       unit )
     GT.t
 
   val show : g -> string
+
+  val show_binary : g -> string
 
   val show_logic : l -> string
 end

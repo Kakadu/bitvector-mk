@@ -13,7 +13,7 @@
  (libraries OCanren OCanren.tester bv z3)
  (wrapped false)
  (preprocess
-  (pps my_rewriter)))
+  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl )))
 
 (executable
  (name ph_test)
@@ -21,7 +21,7 @@
  (flags (-rectypes))
  (libraries impl)
  (preprocess
-  (pps my_rewriter)))
+  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl)))
 
 
 
@@ -31,4 +31,4 @@
  (flags (-rectypes))
  (libraries OCanren OCanren.tester z3 res impl bv)
  (preprocess
-  (pps my_rewriter)))
+  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl)))

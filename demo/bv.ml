@@ -23,6 +23,8 @@ module Repr = struct
 
   type injected = n
 
+  let inj g = GT.foldl Std.List.ground (fun acc x -> !!x % acc) (Std.nil ()) g
+
   let reify = List.reify OCanren.reify
 
   let prjc_exn env : injected -> g =
@@ -34,6 +36,15 @@ module Repr = struct
   let show xs = GT.(show List.ground @@ show int) xs
 
   let show_logic = GT.(show List.logic @@ show logic @@ show int)
+
+  let show_binary (xs : g) =
+    let b = Buffer.create 10 in
+    Buffer.add_string b "0b";
+    let add = Buffer.add_char b in
+    GT.foldr Std.List.ground
+      (fun () -> function 0 -> add '0' | 1 -> add '1' | _ -> assert false)
+      () xs;
+    Buffer.contents b
 
   let rec eq_exn xs ys =
     match (xs, ys) with
@@ -70,6 +81,9 @@ module Repr = struct
           method gmap = Fun.id
 
           method fmt ppf x = Format.fprintf ppf "%s" (show_logic x)
+
+          method foldl =
+            GT.foldl Std.List.logic (GT.foldl OCanren.logic @@ GT.foldl GT.int)
         end;
     }
 end
@@ -141,15 +155,6 @@ let create width : (module S) =
        type n = (e, e logic) OCanren.Std.List.groundi
 
        type injected = n *)
-
-    let show_binary (xs : g) =
-      let b = Buffer.create (width + 4) in
-      Buffer.add_string b "0b";
-      let add = Buffer.add_char b in
-      GT.foldr Std.List.ground
-        (fun () -> function 0 -> add '0' | 1 -> add '1' | _ -> assert false)
-        () xs;
-      Buffer.contents b
 
     let width = width
 
