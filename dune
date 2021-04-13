@@ -29,6 +29,6 @@
  (name main)
  (modules main)
  (flags (-rectypes))
- (libraries OCanren OCanren.tester z3 res impl bv)
+ (libraries OCanren z3 res impl bv mytester)
  (preprocess
   (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl)))

@@ -198,10 +198,10 @@ let test m =
     (q, myenqueue)
   in
 
-  let on_ground x = Format.asprintf "%a" (GT.fmt Ph.ground) x in
-  let on_logic x = Format.asprintf "%a" (GT.fmt Ph.logic) x in
+  let on_ground ~span:_ x = Format.asprintf "%a" (GT.fmt Ph.ground) x in
+  let on_logic ~span:_ x = Format.asprintf "%a" (GT.fmt Ph.logic) x in
   let open OCanren in
-  let open Tester in
+  let open Mytester in
   let goal ans_var =
     let loop () =
       let rec helper i =
@@ -277,7 +277,7 @@ let test m =
       (* TODO: removing constraint below leads to more examples
          FIX: do not add duplicate examples.
       *)
-      (* (enough_variables ans_var)  *)
+      (* (enough_variables ans_var) *)
       (cutter ans_var)
   in
   runR Ph.reify on_ground on_logic 1 q qh ("", goal)
