@@ -46,7 +46,7 @@ module N = struct
     }
 
   let to_smt ctx xs : Z3.Expr.expr =
-    let (module T), _ = S.to_z3 ctx in
+    let (module T), _ = Algebra.to_z3 ctx in
 
     (* let b = Buffer.create 20 in *)
     (* Buffer.add_string b "#x";
@@ -59,7 +59,7 @@ module N = struct
     T.const_s @@ string_of_int @@ int_of_ground xs
 
   let to_smt_logic_exn ctx (xs : Bv.Repr.l) : Z3.Expr.expr =
-    let (module T), _ = S.to_z3 ctx in
+    let (module T), _ = Algebra.to_z3 ctx in
     (* let b = Buffer.create 20 in *)
     (* Buffer.add_string b "#x"; *)
     let acc = ref 0 in
@@ -173,9 +173,9 @@ module T = struct
     }
 
   let to_smt ctx : ground -> _ =
-    let (module T), (module P) = S.to_z3 ctx in
+    let (module T), (module P) = Algebra.to_z3 ctx in
     (* TODO: maybe returned T should already be enriched *)
-    let module T = S.EnrichTerm (T) in
+    let module T = Algebra.EnrichTerm (T) in
     let rec helper = function
       | Const n -> N.to_smt ctx n
       | Var s -> T.var s
@@ -192,8 +192,8 @@ module T = struct
     helper
 
   let to_smt_logic_exn ctx : logic -> _ =
-    let (module T), _ = S.to_z3 ctx in
-    let module T = S.EnrichTerm (T) in
+    let (module T), _ = Algebra.to_z3 ctx in
+    let module T = Algebra.EnrichTerm (T) in
     let rec helper : logic -> _ = function
       | Value (Var (OCanren.Var _)) | Var _ -> failwith "logic inside"
       | Value (Const n) -> N.to_smt_logic_exn ctx n
@@ -309,7 +309,7 @@ module Ph = struct
 
   let to_smt ctx gr =
     let term = T.to_smt ctx in
-    let _, (module P) = S.to_z3 ctx in
+    let _, (module P) = Algebra.to_z3 ctx in
 
     let rec helper = function
       | Eq (l, r) -> P.eq (term l) (term r)
@@ -323,7 +323,7 @@ module Ph = struct
 
   let to_smt_logic_exn ctx : logic -> Z3.Expr.expr =
     let term = T.to_smt_logic_exn ctx in
-    let _, (module P) = S.to_z3 ctx in
+    let _, (module P) = Algebra.to_z3 ctx in
 
     let rec helper = function
       | Var _ -> failwith "free vars inside"

@@ -35,8 +35,6 @@ module MyQueue : sig
 end = struct
   module Arr = Res.Array
 
-  (* type model = Z3.Model.model *)
-
   (* WE should save models and evaluations of the original formula in them *)
   type t = (EvalPh.Env.ground * EvalPh.Env.injected) Arr.t
 
@@ -99,20 +97,20 @@ let test m =
   let ctx = Z3.mk_context [] in
   let solver = Z3.Solver.mk_simple_solver ctx in
 
-  let (module T), (module P) = S.to_z3 ctx in
-  let (module I : S.INPUT) = m in
+  let (module T), (module P) = Algebra.to_z3 ctx in
+  let (module I : Algebra.INPUT) = m in
   let module Z3Encoded = I (T) (P) in
   Format.printf "%s\n%!" Z3Encoded.info;
   Format.printf "%s\n%!" (Z3.Expr.to_string Z3Encoded.ph);
-  let free = S.freevars m in
+  let free = Algebra.freevars m in
   let () =
     Format.printf "Free vars: ";
-    S.SS.iter (Format.printf "%s ") free;
+    Algebra.SS.iter (Format.printf "%s ") free;
     Format.printf "\n%!";
-    assert (not (S.SS.is_empty free))
+    assert (not (Algebra.SS.is_empty free))
   in
   let varo : _ -> OCanren.goal =
-    match S.SS.to_seq free |> List.of_seq with
+    match Algebra.SS.to_seq free |> List.of_seq with
     | [] -> fun _ -> failure
     | h :: tl ->
         List.fold_left
@@ -121,7 +119,7 @@ let test m =
           tl
   in
 
-  let (module F : S.FORMULA_Z3) = S.z3_of_formula ctx in
+  let (module F : Algebra.FORMULA_Z3) = Algebra.z3_of_formula ctx in
   let (module BV) = Bv.create 4 in
 
   let ex_storage, myenqueue =
@@ -137,7 +135,7 @@ let test m =
     let q = MyQueue.create () in
     let myenqueue model =
       let env =
-        S.SS.fold
+        Algebra.SS.fold
           (fun name acc ->
             let eans = Z3.Model.eval model (T.var name) true |> Option.get in
             let estr = Z3.Expr.to_string eans in
@@ -201,7 +199,7 @@ let test m =
                      collect_in_term2
                      (fun acc _ -> acc)
                      (fun acc -> function
-                       | Value x -> S.SS.add x acc
+                       | Value x -> Algebra.SS.add x acc
                        | Var _ -> assert false)
                      (fun _ _ -> failwith "should not happen")
                end))
@@ -224,8 +222,8 @@ let test m =
             match p with [ h ] -> h | _ -> assert false
           in
 
-          let cur_vars = collect_in_ph S.SS.empty p in
-          if S.SS.equal cur_vars free then success else failure)
+          let cur_vars = collect_in_ph Algebra.SS.empty p in
+          if Algebra.SS.equal cur_vars free then success else failure)
     in
     let cutter q =
       debug_var q (flip Ph.reify) (fun p ->
@@ -246,7 +244,6 @@ let test m =
               success
           | SATISFIABLE ->
               let model = Z3.Solver.get_model solver |> Option.get in
-              (* Format.printf "Enqueueing...\n%!"; *)
               myenqueue model;
               failure)
     in
@@ -259,4 +256,4 @@ let test m =
   in
   runR Ph.reify on_ground on_logic 1 q qh ("", goal)
 
-let () = test S.ex7
+let () = test Algebra.ex7
