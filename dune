@@ -8,7 +8,7 @@
 
 (library
  (name impl)
- (modules EvalPh Algebra)
+ (modules Types EvalPh0 Algebra)
  (flags (-rectypes))
  (libraries OCanren OCanren.tester bv z3)
  (wrapped false)

@@ -1,6 +1,6 @@
 open Format
 open OCanren
-open EvalPh
+open Types
 
 [%%define TRACE]
 
@@ -29,11 +29,11 @@ let __ () =
 module MyQueue : sig
   type t
 
-  val enqueue : t -> EvalPh.Env.ground -> unit
+  val enqueue : t -> Env.ground -> unit
 
   val create : unit -> t
 
-  val get : t -> int -> EvalPh.Env.ground * EvalPh.Env.injected
+  val get : t -> int -> Env.ground * Env.injected
 
   val size : t -> int
 
@@ -42,10 +42,7 @@ end = struct
   module Arr = Res.Array
 
   (* WE should save models and evaluations of the original formula in them *)
-  type t = {
-    arr : (EvalPh.Env.ground * EvalPh.Env.injected) Arr.t;
-    count : int ref;
-  }
+  type t = { arr : (Env.ground * Env.injected) Arr.t; count : int ref }
 
   (* [%%define CHECK_DUPLICATES] *)
 
@@ -53,14 +50,14 @@ end = struct
 
   exception Duplicate
 
-  let enqueue : t -> EvalPh.Env.ground -> unit =
+  let enqueue : t -> Env.ground -> unit =
    fun ({ arr } as q) ex ->
     try
       Arr.iter (fun (el, _) -> if el = ex then raise Duplicate) arr;
 
       (* Doc doesn't say explicitly but
          it seems that it is adding new element to the end *)
-      Arr.add_one arr (ex, EvalPh.Env.inject ex)
+      Arr.add_one arr (ex, Env.inject ex)
     with Duplicate -> incr q.count
 
   let create () : t = { arr = Arr.empty (); count = ref 0 }
@@ -100,7 +97,7 @@ let trace_new_example =
   | exception Not_found -> fun _ _ -> ()
   | _ ->
       fun env sz ->
-        Format.printf "next model is = '%s'\n%!" (EvalPh.Env.show env);
+        Format.printf "next model is = '%s'\n%!" (Env.show env);
         Format.printf "Examples count  = %d\n%!" sz
 
 [%%else]
@@ -113,7 +110,7 @@ let trace_new_example _ _ = ()
 
 [%%endif]
 
-let test m =
+let test (evalo : (module Bv.S) -> _) m =
   let ctx = Z3.mk_context [] in
   let solver = Z3.Solver.mk_simple_solver ctx in
 
@@ -174,7 +171,7 @@ let test m =
             try
               Scanf.sscanf estr "#x%X" (fun n ->
                   (* failwith estr; *)
-                  Std.List.Cons ((name, EvalPh.T.Const (BV.of_int n)), acc))
+                  Std.List.Cons ((name, Types.T.Const (BV.of_int n)), acc))
             with Scanf.Scan_failure s as e ->
               Format.eprintf "Error while parsing a string '%s'\n%!" estr;
               raise e)
@@ -211,17 +208,17 @@ let test m =
         else
           let _g, env0 = MyQueue.get ex_storage i in
           (* Format.printf "Testing example: '%a'\n%!" EvalPh.Env.pp _g; *)
-          EvalPh.evalo (module BV) env0 ans_var &&& helper (1 + i)
+          evalo (module BV) env0 ans_var &&& helper (1 + i)
       in
       helper 0
     in
-    let enough_variables q =
-      let rec collect_in_term2 acc : EvalPh.T.logic -> _ =
+    let _enough_variables q =
+      let rec collect_in_term2 acc : Types.T.logic -> _ =
         GT.foldl OCanren.logic
-          (GT.transform EvalPh.T.t (fun _ ->
+          (GT.transform Types.T.t (fun _ ->
                object
                  inherit
-                   [_, _, _, _, _] EvalPh.T.foldl_t_t
+                   [_, _, _, _, _] Types.T.foldl_t_t
                      collect_in_term2
                      (fun acc _ -> acc)
                      (fun acc -> function
@@ -231,12 +228,12 @@ let test m =
                end))
           acc
       in
-      let rec collect_in_ph acc : EvalPh.Ph.logic -> _ =
+      let rec collect_in_ph acc : Types.Ph.logic -> _ =
         GT.foldl OCanren.logic
-          (GT.transform EvalPh.Ph.t (fun _ ->
+          (GT.transform Types.Ph.t (fun _ ->
                object
                  inherit
-                   [_, _, _, _] EvalPh.Ph.foldl_t_t
+                   [_, _, _, _] Types.Ph.foldl_t_t
                      collect_in_ph collect_in_term2
                      (fun _ _ -> failwith "should not happen")
                end))
@@ -244,7 +241,7 @@ let test m =
       in
 
       debug_var q (flip Ph.reify) (fun p ->
-          let p : EvalPh.Ph.logic =
+          let p : Types.Ph.logic =
             match p with [ h ] -> h | _ -> assert false
           in
 
@@ -282,4 +279,4 @@ let test m =
   in
   runR Ph.reify on_ground on_logic 1 q qh ("", goal)
 
-let () = test Algebra.ex7
+let () = test EvalPh0.evalo Algebra.ex7
