@@ -2,6 +2,10 @@ open Format
 open OCanren
 open EvalPh
 
+[%%define TRACE]
+
+(* [%%undef TRACE] *)
+
 let rec inhabito term r =
   conde
     [
@@ -32,48 +36,64 @@ module MyQueue : sig
   val get : t -> int -> EvalPh.Env.ground * EvalPh.Env.injected
 
   val size : t -> int
+
+  val report_queue_stats : t -> unit
 end = struct
   module Arr = Res.Array
 
   (* WE should save models and evaluations of the original formula in them *)
-  type t = (EvalPh.Env.ground * EvalPh.Env.injected) Arr.t
+  type t = {
+    arr : (EvalPh.Env.ground * EvalPh.Env.injected) Arr.t;
+    count : int ref;
+  }
+
+  (* [%%define CHECK_DUPLICATES] *)
+
+  (* [%%undef CHECK_DUPLICATES] *)
+
+  exception Duplicate
 
   let enqueue : t -> EvalPh.Env.ground -> unit =
-   fun arr ex ->
-    (* Doc doesn't say explicitly but
-       it seems that it is adding new element to the end *)
-    Arr.add_one arr (ex, EvalPh.Env.inject ex)
+   fun ({ arr } as q) ex ->
+    try
+      Arr.iter (fun (el, _) -> if el = ex then raise Duplicate) arr;
 
-  let create () : t = Arr.empty ()
+      (* Doc doesn't say explicitly but
+         it seems that it is adding new element to the end *)
+      Arr.add_one arr (ex, EvalPh.Env.inject ex)
+    with Duplicate -> incr q.count
 
-  let get = Arr.get
+  let create () : t = { arr = Arr.empty (); count = ref 0 }
 
-  let clear q = q := []
+  let get { arr } = Arr.get arr
 
-  let size = Arr.length
+  (* let clear q = q := [] *)
+
+  let size { arr } = Arr.length arr
+
+  [%%if defined TRACE]
+
+  let report_queue_stats q =
+    Format.printf "Queue contains %d examples\n%!" (size q);
+    Format.printf "There were %d duplicate examples\n%!" !(q.count)
+
+  [%%else]
+
+  let report_queue_stats _ = ()
+
+  [%%endif]
 end
-
-[%%define TRACE]
-
-(* [%%undef TRACE] *)
 
 [%%if defined TRACE]
 
-let trace_on_success
-    (* match Sys.getenv "MKTRACE" with
-       | exception Not_found -> fun _ -> ()
-       | _ ->
-    *)
-      q =
-  Format.printf "Success after %d examples\n%!" (MyQueue.size q)
+let trace_on_success q solver_count =
+  MyQueue.report_queue_stats q;
+  Format.printf "Solver called %d times\n%!" (solver_count ())
 
 let trace_intermediate_candidate =
   match Sys.getenv "MKTRACE" with
   | exception Not_found -> fun _ -> ()
-  | _ ->
-      fun q ->
-        let () = Format.printf "@[Query:@ @[%s@]@]\n%!" (Z3.Expr.to_string q) in
-        ()
+  | _ -> fun q -> Format.printf "@[Query:@ @[%s@]@]\n%!" (Z3.Expr.to_string q)
 
 let trace_new_example =
   match Sys.getenv "MKTRACE" with
@@ -97,18 +117,31 @@ let test m =
   let ctx = Z3.mk_context [] in
   let solver = Z3.Solver.mk_simple_solver ctx in
 
+  let run_solver, solver_count =
+    let c = ref 0 in
+    let run ph =
+      incr c;
+      Z3.Solver.check solver [ ph ]
+    in
+    let count () = !c in
+    (run, count)
+  in
+
   let (module T), (module P) = Algebra.to_z3 ctx in
   let (module I : Algebra.INPUT) = m in
   let module Z3Encoded = I (T) (P) in
   Format.printf "%s\n%!" Z3Encoded.info;
   Format.printf "%s\n%!" (Z3.Expr.to_string Z3Encoded.ph);
   let free = Algebra.freevars m in
-  let () =
+  let __ () =
     Format.printf "Free vars: ";
     Algebra.SS.iter (Format.printf "%s ") free;
     Format.printf "\n%!";
     assert (not (Algebra.SS.is_empty free))
   in
+
+  (*
+  (* varo is required for inhabito *)
   let varo : _ -> OCanren.goal =
     match Algebra.SS.to_seq free |> List.of_seq with
     | [] -> fun _ -> failure
@@ -117,8 +150,7 @@ let test m =
           (fun relo name q -> conde [ q === !!name; relo q ])
           (fun q -> q === !!h)
           tl
-  in
-
+  in *)
   let (module F : Algebra.FORMULA_Z3) = Algebra.z3_of_formula ctx in
   let (module BV) = Bv.create 4 in
 
@@ -155,13 +187,8 @@ let test m =
     in
 
     (* let's create a 1st example where all free variables are zero*)
-    let _ =
-      (* let ph1 =
-           S.SS.fold
-             (fun name -> F.conj (F.eq (T.var name) (T.const_s "1")))
-             free Z3Encoded.ph
-         in *)
-      match Z3.Solver.check solver [ Z3Encoded.ph ] with
+    let () =
+      match run_solver Z3Encoded.ph with
       | Z3.Solver.UNKNOWN -> failwith "Solver should not return UNKNOWN result"
       | UNSATISFIABLE -> failwith "Initial formula is unsat"
       | SATISFIABLE ->
@@ -179,14 +206,13 @@ let test m =
     let loop () =
       let rec helper i =
         if i >= MyQueue.size ex_storage then
-          let () = Format.printf "i is >= %d\n%!" (MyQueue.size ex_storage) in
+          (* let () = Format.printf "i is >= %d\n%!" (MyQueue.size ex_storage) in *)
           success
         else
           let _g, env0 = MyQueue.get ex_storage i in
-          Format.printf "Testing example: '%a'\n%!" EvalPh.Env.pp _g;
+          (* Format.printf "Testing example: '%a'\n%!" EvalPh.Env.pp _g; *)
           EvalPh.evalo (module BV) env0 ans_var &&& helper (1 + i)
       in
-      (* inhabito (inhabito_term varo) q *)
       helper 0
     in
     let enough_variables q =
@@ -236,11 +262,11 @@ let test m =
 
           let q = F.(not (iff candidate Z3Encoded.ph)) in
           trace_intermediate_candidate candidate;
-          match Z3.Solver.check solver [ q ] with
+          match run_solver q with
           | Z3.Solver.UNKNOWN ->
               failwith "Solver should not return UNKNOWN result"
           | UNSATISFIABLE ->
-              trace_on_success ex_storage;
+              trace_on_success ex_storage solver_count;
               success
           | SATISFIABLE ->
               let model = Z3.Solver.get_model solver |> Option.get in
