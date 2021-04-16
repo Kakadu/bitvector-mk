@@ -313,10 +313,19 @@ let ex4 =
     let answer =
       let open P in
       let a = T.var "a" in
+      let ph0 = T.var "b" <= a in
       let ph1 = T.(shl (var "b") (T.const_s "1") <= a) in
       let ph2 = T.(shl (var "b") (T.const_s "2") <= a) in
       let ph3 = T.(shl (var "b") (T.const_s "3") <= a) in
-      Some P.(T.((not (T.var "b" <= a)) && ph1 && ph2 && ph3))
+      Some P.(not (ph0 && ph1 && ph2 && ph3))
+    (*
+    let answer =
+      let open P in
+      let a = T.var "a" in
+      let ph1 = not T.(shl (var "b") (T.const_s "1") <= a) in
+      let ph2 = not T.(shl (var "b") (T.const_s "2") <= a) in
+      let ph3 = not T.(shl (var "b") (T.const_s "3") <= a) in
+      Some P.(T.((not (T.var "b" <= a)) && ph1 && ph2 && ph3)) *)
   end in
   (module M : INPUT)
 

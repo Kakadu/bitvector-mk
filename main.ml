@@ -130,13 +130,13 @@ let test (evalo : (module Bv.S) -> _) m =
   Format.printf "%s\n%!" Z3Encoded.info;
   Format.printf "%s\n%!" (Z3.Expr.to_string Z3Encoded.ph);
   let free = Algebra.freevars m in
-  let __ () =
-    Format.printf "Free vars: ";
-    Algebra.SS.iter (Format.printf "%s ") free;
-    Format.printf "\n%!";
-    assert (not (Algebra.SS.is_empty free))
-  in
 
+  (* let __ () =
+       Format.printf "Free vars: ";
+       Algebra.SS.iter (Format.printf "%s ") free;
+       Format.printf "\n%!";
+       assert (not (Algebra.SS.is_empty free))
+     in *)
   (*
   (* varo is required for inhabito *)
   let varo : _ -> OCanren.goal =
@@ -150,6 +150,23 @@ let test (evalo : (module Bv.S) -> _) m =
   in *)
   let (module F : Algebra.FORMULA_Z3) = Algebra.z3_of_formula ctx in
   let (module BV) = Bv.create 4 in
+
+  let check_cand candidate =
+    let q = F.(not (iff candidate Z3Encoded.ph)) in
+    trace_intermediate_candidate candidate;
+    run_solver q
+  in
+
+  let _ =
+    match Z3Encoded.answer with
+    | None -> ()
+    | Some answ -> (
+        match check_cand answ with
+        | Z3.Solver.UNKNOWN -> assert false
+        | Z3.Solver.SATISFIABLE -> failwith "Proposed answer is not an answer"
+        | Z3.Solver.UNSATISFIABLE ->
+            Format.printf "Predefined answers fits!\n%!")
+  in
 
   let ex_storage, myenqueue =
     let _eval m =
@@ -183,7 +200,7 @@ let test (evalo : (module Bv.S) -> _) m =
       MyQueue.enqueue q env
     in
 
-    (* let's create a 1st example where all free variables are zero*)
+    (* let's create a 1st example by querying any model *)
     let () =
       match run_solver Z3Encoded.ph with
       | Z3.Solver.UNKNOWN -> failwith "Solver should not return UNKNOWN result"

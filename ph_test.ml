@@ -1,16 +1,16 @@
 open OCanren
 open Tester
-open EvalPh
+open Types
 
 let __ =
   let (module BV) = Bv.create 4 in
   let runBV =
     Tester.runR Bv.Repr.reify (GT.show Bv.Repr.g) (GT.show Bv.Repr.l)
   in
-  let runR = Tester.runR Ph.reify (GT.show Ph.ground) (GT.show Ph.logic) in
+  let runF = Tester.runR Ph.reify (GT.show Ph.ground) (GT.show Ph.logic) in
   let runS = Tester.run_exn (GT.show GT.string) in
   let runT = Tester.runR T.reify (GT.show T.ground) (GT.show T.logic) in
-  let evalo = EvalPh.evalo (module BV) in
+  let evalo = EvalPh0.evalo (module BV) in
   let _ = runT in
   let _ = runR in
   let _ = runS in
@@ -38,7 +38,7 @@ let __ =
 
      runBV (-1) q qh (REPR (fun q -> BV.lto (BV.build_num 1) (BV.build_num 0)));
   *)
-  runR 15 q qh
+  runF 15 q qh
     (REPR
        (fun q ->
          evalo (Env.cons !!"x" (T.const @@ BV.build_num 15) Env.empty) q));
@@ -51,6 +51,12 @@ let __ =
          &&& forallo (fun q ->
                  fresh rez (BV.addo q q rez) (BV.multo q (BV.build_num 2) rez))));
 *)
+  runS 1 q qh
+    (REPR
+       (fun s ->
+         s === !!"tautology"
+         &&& evalo Env.empty
+               Ph.(le (T.const @@ BV.build_num 1) (T.const @@ BV.build_num 2))));
 
   (*
   runBV 15 q qh
