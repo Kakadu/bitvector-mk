@@ -279,4 +279,4 @@ let test (evalo : (module Bv.S) -> _) m =
   in
   runR Ph.reify on_ground on_logic 1 q qh ("", goal)
 
-let () = test EvalPh0.evalo Algebra.ex7
+let () = test EvalPh0.evalo Algebra.ex4

@@ -152,13 +152,13 @@ let z3_of_term ctx : (module TERM_Z3) =
   (module T : TERM with type t = T.t)
 
 let z3_of_formula ctx :
-    (module FORMULA with type t = Z3.Expr.expr and type term = Z3.Expr.expr) =
+    (module FORMULA with type t = z3_expr and type term = z3_expr) =
   let module P = struct
     open Z3
 
-    type t = Z3.Expr.expr
+    type t = z3_expr
 
-    type term = Z3.Expr.expr
+    type term = z3_expr
 
     let iff a b = Boolean.mk_iff ctx a b
 
@@ -184,18 +184,21 @@ let z3_of_formula ctx :
       Quantifier.expr_of_quantifier
         (Quantifier.mk_exists_const ctx [ x ] f None [] [] None None)
   end in
-  (module P : FORMULA with type t = Z3.Expr.expr and type term = Z3.Expr.expr)
+  (module P : FORMULA with type t = z3_expr and type term = z3_expr)
 
 let to_z3 :
     Z3.context ->
-    (module TERM with type t = Z3.Expr.expr)
-    * (module FORMULA with type t = Z3.Expr.expr and type term = Z3.Expr.expr) =
+    (module TERM with type t = z3_expr)
+    * (module FORMULA with type t = z3_expr and type term = z3_expr) =
  fun ctx -> (z3_of_term ctx, z3_of_formula ctx)
 
 module type INPUT = functor (T : TERM) (P : FORMULA with type term = T.t) -> sig
   val info : string
 
   val ph : P.t
+
+  (* hardcoded predefined answer *)
+  val answer : P.t option
 end
 
 module SS = Set.Make (String)
@@ -251,56 +254,77 @@ let freevars m =
 
 let ex1 =
   let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
+    module P = EnrichFormula (P)
+    module T = EnrichTerm (T)
+
     let info = "example1: (forall y. y=y) && (a = a&a)"
 
     let ph =
       P.(
-        conj
-          (forall "y" (eq (T.var "y") (T.var "y")))
-          (eq (T.var "a") T.(land_ (T.var "a") (T.var "a"))))
+        T.(
+          conj
+            (forall "y" (var "y" == var "y"))
+            (var "a" == land_ (var "a") (var "a"))))
+
+    let answer = None
   end in
   (module M : INPUT)
 
 let ex2 =
   let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
+    module P = EnrichFormula (P)
+    module T = EnrichTerm (T)
+
     let info = "example1"
 
-    let ph = P.(exists "q" (eq T.(add (var "q") (var "q")) (T.var "a")))
+    let ph = P.(T.(exists "q" (var "q" + var "q" == var "a")))
+
+    let answer = None
   end in
   (module M : INPUT)
 
 let ex3 =
   let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
+    module P = EnrichFormula (P)
+    module T = EnrichTerm (T)
+
     let info = "example3: exists y. (0<=y) && (a = (1+1) << y)"
 
     let ph =
       P.(
         exists "y"
-          (conj
-             (le T.(const_s "0") T.(var "y"))
-             (eq (T.var "a")
-                T.(shl (add (const_s "1") (const_s "1")) (var "y")))))
+          T.(
+            const_s "0" <= var "y"
+            && var "a" == shl (const_s "1" + const_s "1") (var "y")))
+
+    let answer = None
   end in
   (module M : INPUT)
 
 let ex4 =
   let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
+    module P = EnrichFormula (P)
+    module T = EnrichTerm (T)
+
     let info = "example4 about logarithm"
 
     let ph = P.(exists "x" T.(lt (var "a") (shl (var "b") (var "x"))))
 
-    (* Идея: выкинуть младшие разряды из a и проверить, что b<>0 и a<>max_int
-         unsigned long long remove_trailing_zeroes(unsigned long long v) {
-           return v ? v / (-v & v) : v;
-         }
-
-       P.S. тут что-то дикое
-    *)
+    let answer =
+      let open P in
+      let a = T.var "a" in
+      let ph1 = T.(shl (var "b") (T.const_s "1") <= a) in
+      let ph2 = T.(shl (var "b") (T.const_s "2") <= a) in
+      let ph3 = T.(shl (var "b") (T.const_s "3") <= a) in
+      Some P.(T.((not (T.var "b" <= a)) && ph1 && ph2 && ph3))
   end in
   (module M : INPUT)
 
 let ex5 =
   let module M (T : TERM) (P : FORMULA with type term = T.t) = struct
+    module P = EnrichFormula (P)
+    module T = EnrichTerm (T)
+
     let info = "example5"
 
     (* https://is.muni.cz/th/ovulj/teze.pdf *)
@@ -308,8 +332,10 @@ let ex5 =
     let ph =
       P.(
         conj
-          (lt (T.const_s "3") (T.var "a"))
-          (forall "x" @@ not T.(eq (var "a") T.(mul (const_s "2") (var "x")))))
+          (T.const_s "3" < T.var "a")
+          (forall "x" @@ not T.(var "a" == const_s "2" * var "x")))
+
+    let answer = None
   end in
   (module M : INPUT)
 
@@ -326,6 +352,8 @@ let ex6 =
       let head = P.(forall "x" T.(x == x)) in
       let tail = P.(T.(x + x + x + x + x > y + y)) in
       P.(head && tail)
+
+    let answer = None
   end in
   (module M : INPUT)
 
@@ -343,5 +371,7 @@ let ex7 =
       let head = P.(forall "x" T.(x == x)) in
       let tail = P.(T.(x + x + x + x == y)) in
       P.(head && tail)
+
+    let answer = None
   end in
   (module M : INPUT)

@@ -39,13 +39,13 @@ let evalo bv_impl : Env.injected -> Ph.injected -> goal =
     in
     conde
       [
+        fresh v (t === T.var v) (Env.lookupo v env rez);
         wrap_binop T.mul BV.multo;
         wrap_binop T.add BV.addo;
         wrap_binop T.sub BV.subo;
         wrap_uop T.lshiftr1 BV.lshiftr1;
         wrap_uop T.shiftl1 BV.shiftl1;
         (* TODO: divo *)
-        fresh v (t === T.var v) (Env.lookupo v env rez);
       ]
   in
   evalo
