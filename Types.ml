@@ -113,7 +113,7 @@ module T = struct
 
   let const (x : Bv.Repr.injected) : injected = inj @@ E.distrib @@ Const x
 
-  let var s = inj @@ E.distrib @@ Var s
+  let var s : injected = inj @@ E.distrib @@ Var s
 
   let shiftl1 a : injected = inj @@ E.distrib @@ Shl1 a
 
@@ -382,3 +382,74 @@ module Env = struct
 
   let show = Format.asprintf "%a" pp
 end
+
+(* ********************************************************************* *)
+(*
+let z3_of_term (module BV : Bv.S) ctx :
+    (module Algebra.TERM with type t = T.injected) =
+  let module Ans = struct
+    type t = T.injected
+
+    let var s = T.var !!s
+
+    let const n = T.const (BV.build_num n)
+
+    let const_s s : t = T.const (BV.build_num @@ int_of_string s)
+
+    let land_ = T.land_
+
+    let lor_ = T.lor_
+
+    let shl = T.shiftl1
+
+    let lshr = T.lshiftr1
+
+    let add = T.add
+
+    let sub = T.sub
+
+    let mul = T.mul
+  end in
+  (module Ans : Algebra.TERM with type t = T.injected)
+
+let z3_of_formula ctx :
+    (module FORMULA with type t = z3_expr and type term = z3_expr) =
+  let module P = struct
+    open Z3
+
+    type t = z3_expr
+
+    type term = z3_expr
+
+    let iff a b = Boolean.mk_iff ctx a b
+
+    let not = Boolean.mk_not ctx
+
+    let conj a b = Boolean.mk_and ctx [ a; b ]
+
+    let disj a b = Boolean.mk_or ctx [ a; b ]
+
+    let eq = Boolean.mk_eq ctx
+
+    let le = BitVector.mk_ule ctx
+
+    let lt = BitVector.mk_ult ctx
+
+    let forall name f =
+      let x = BitVector.mk_const ctx (Symbol.mk_string ctx name) bv_size in
+      Quantifier.expr_of_quantifier
+        (Quantifier.mk_forall_const ctx [ x ] f None [] [] None None)
+
+    let exists name f =
+      let x = BitVector.mk_const ctx (Symbol.mk_string ctx name) bv_size in
+      Quantifier.expr_of_quantifier
+        (Quantifier.mk_exists_const ctx [ x ] f None [] [] None None)
+  end in
+  (module P : FORMULA with type t = z3_expr and type term = z3_expr)
+
+let to_mk :
+    Z3.context ->
+    (module TERM with type t = z3_expr)
+    * (module FORMULA with type t = z3_expr and type term = z3_expr) =
+ fun ctx -> (z3_of_term ctx, z3_of_formula ctx)
+*)

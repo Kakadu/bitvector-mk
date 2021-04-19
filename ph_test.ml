@@ -51,13 +51,14 @@ let __ =
          &&& forallo (fun q ->
                  fresh rez (BV.addo q q rez) (BV.multo q (BV.build_num 2) rez))));
 *)
-  runS 1 q qh
-    (REPR
-       (fun s ->
-         s === !!"tautology"
-         &&& evalo Env.empty
-               Ph.(le (T.const @@ BV.build_num 1) (T.const @@ BV.build_num 2))));
 
+  (* runS 1 q qh
+     (REPR
+        (fun s ->
+          s === !!"tautology"
+          &&& evalo Env.empty
+                Ph.(le (T.const @@ BV.build_num 1) (T.const @@ BV.build_num 2))));
+  *)
   (*
   runBV 15 q qh
     (REPR
@@ -70,4 +71,13 @@ let __ =
   (* runBV 15 q qh (REPR (fun q -> BV.addo (BV.build_num 1) (BV.build_num 1) q)); *)
 
   (* runBV 15 q qh (REPR (fun q -> q === BV.build_num 1)); *)
+  (* runF 30 q qh
+     (REPR
+        (fun f ->
+          fresh (v1 v2 env)
+            (env === Env.cons !!"x" v1 (Env.cons !!"y" v2 Env.empty))
+            (forallo (fun q -> EvalPh0.evalo (module BV) env f))));
+  *)
+  runBV (-1) qr qrh (REPR (fun q r -> BV.leo q r));
+
   ()

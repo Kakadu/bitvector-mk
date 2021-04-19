@@ -165,7 +165,19 @@ let test (evalo : (module Bv.S) -> _) m =
         | Z3.Solver.UNKNOWN -> assert false
         | Z3.Solver.SATISFIABLE -> failwith "Proposed answer is not an answer"
         | Z3.Solver.UNSATISFIABLE ->
-            Format.printf "Predefined answers fits!\n%!")
+            Format.printf
+              "Predefined answers fits by the opinon of SMT solver!\n%!")
+  in
+  let _ =
+    match Z3Encoded.answer with
+    | None -> ()
+    | Some answ -> (
+        match check_cand answ with
+        | Z3.Solver.UNKNOWN -> assert false
+        | Z3.Solver.SATISFIABLE -> failwith "Proposed answer is not an answer"
+        | Z3.Solver.UNSATISFIABLE ->
+            Format.printf
+              "Predefined answers fits by the opinon of SMT solver!\n%!")
   in
 
   let ex_storage, myenqueue =

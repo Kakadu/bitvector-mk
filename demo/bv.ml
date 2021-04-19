@@ -7,6 +7,8 @@ open Tester
 
 [%%undef TRACE]
 
+let int_pow base width = int_of_float (float_of_int base ** float_of_int width)
+
 module Repr = struct
   type e = int
 
@@ -158,7 +160,7 @@ let create width : (module S) =
 
     let width = width
 
-    let count = int_of_float (2. ** float_of_int width)
+    let count = int_pow 2 width
 
     let of_int n : g =
       if n >= count then failwith "of_int: argument too big"
@@ -792,20 +794,26 @@ let create width : (module S) =
     let shiftlo _ _ _ = assert false
     (* Comparisons *)
 
-    let rec leo l r =
-      conde
-        [
-          l === Std.nil () &&& (r === l);
-          fresh (lh ltl rh rtl)
-            (l === lh % ltl)
-            (r === rh % rtl)
-            (conde
-               [
-                 lh === rh &&& leo ltl rtl;
-                 lh === !!0 &&& (rh === !!1) &&& leo ltl rtl;
-                 lh === !!1 &&& (rh === !!0) &&& failure;
-               ]);
-        ]
+    let leo =
+      let rec helper pos l r =
+        conde
+          [
+            !!pos === !!0
+            &&& conde [ l =/= Std.nil (); r =/= Std.nil () ]
+            &&& failure;
+            !!pos === !!0 &&& (l === Std.nil ()) &&& (r === l);
+            fresh (lh ltl rh rtl) (!!pos =/= !!0)
+              (l === lh % ltl)
+              (r === rh % rtl)
+              (conde
+                 [
+                   lh === rh &&& helper (pos - 1) ltl rtl;
+                   lh === !!0 &&& (rh === !!1) &&& helper (pos - 1) ltl rtl;
+                   lh === !!1 &&& (rh === !!0) &&& failure;
+                 ]);
+          ]
+      in
+      helper width
 
     let rec lto l r =
       conde
@@ -827,300 +835,11 @@ let create width : (module S) =
 
     let loro _ _ = assert false
 
+    
+    let my_shift_left op len =
+      fresh (len1)
+
+
     (* let forallo q relo = leo q (build_num (count - 1)) &&& relo q *)
   end in
   (module M : S)
-
-(*
-let create_peano width : (module S) =
-  let module M = struct
-    open OCanren
-
-    type g = Std.Nat.ground
-
-    type l = Std.Nat.logic
-
-    type n = OCanren.Std.Nat.groundi
-
-    let show = GT.show Nat.ground
-
-    let show_logic = GT.show Nat.logic
-
-    let reify = Nat.reify
-
-    let width = width
-
-    let count = int_of_float (2. ** float_of_int width)
-
-    let build_num n =
-      if n >= count then
-        failwith (Printf.sprintf "bad argument of build_num: %d" n)
-      else
-        let rec helper acc n =
-          if n = 0 then acc else helper (Std.Nat.succ acc) (n - 1)
-        in
-        helper Std.Nat.zero n
-
-    let overflow = Std.Nat.succ (build_num (count - 1))
-
-    let max_int = build_num (count - 1)
-
-    let () = Printf.printf "oveflow peano = %d\n" (count - 1)
-
-    let trace_peano n fmt =
-      debug_var n
-        (fun a b -> Std.Nat.reify b a)
-        (function
-          | [ n ] ->
-              Format.printf "%s: %s\n%!" (Format.asprintf fmt)
-                (GT.show Std.Nat.logic n);
-              success
-          | _ -> assert false)
-
-    let rec pluso m n r =
-      trace_peano max_int "max_int"
-      &&& trace_peano m "m" &&& trace_peano n "n" &&& trace_peano r "r"
-      &&& conde
-            [
-              m === Std.Nat.zero &&& (n === r);
-              fresh (prev nextr)
-                (m === Std.Nat.s prev)
-                (conde
-                   [
-                     r === max_int &&& (nextr === Std.Nat.zero);
-                     r =/= max_int &&& (nextr === Std.Nat.s r);
-                   ])
-                (pluso prev n nextr);
-            ]
-  end in
-  (module M : S) *)
-
-(*
-let rec eqlo n m =
-  conde [
-    (nil() === n) &&& (nil() === m);
-    ((!< !1) === n) &&& ((!< !1) === m);
-    fresh (a x b y)
-      ((a % x) === n)
-      (poso x)
-      ((b % y) === m)
-      (poso y)
-      (eqlo x y)
-  ]
-
-let rec ltlo n m =
-  conde [
-    (nil() === n) &&& (poso m);
-    ((!< !1) === n) &&& (gt1o m);
-    fresh (a x b y)
-      ((a % x) === n)
-      (poso x)
-      ((b % y) === m)
-      (poso y)
-      (ltlo x y)
-  ]
-
-let lelo n m =
-  conde [
-    (eqlo n m);
-    (ltlo n m)
-  ]
-
-let rec lto n m =
-  conde [
-    (ltlo n m);
-    ?& [
-      (eqlo n m);
-      fresh (x)
-        (poso x)
-        (pluso n x m)
-    ]
-  ]
-
-let leo n m =
-  conde [
-    (n === m);
-    (lto n m)
-  ]
-
-let rec splito n r l h =
-  conde [
-    (nil() === n) &&& (nil() === h) &&& (nil() === l);
-    fresh (b n')
-      ((!0 % (b % n')) === n)
-      (nil() === r)
-      ((b % n') === h)
-      (nil() === l);
-    fresh (n')
-      ((!1 % n') === n)
-      (nil() === r)
-      (n' === h)
-      ((!< !1) === l);
-    fresh (b n' a r')
-      ((!0 % (b % n')) === n)
-      ((a % r') === r)
-      (nil() === l)
-      (splito (b % n') r' (nil()) h);
-    fresh (n' a r')
-      ((!1 % n') === n)
-      ((a % r') === r)
-      ((!< !1) === l)
-      (splito n' r' (nil()) h);
-    fresh (b n' a r' l')
-      ((b % n') === n)
-      ((a % r') === r)
-      ((b % l') === l)
-      (poso l')
-      (splito n' r' l' h)
-  ]
-
-let rec divo n m q r =
-  conde [
-    (r === n) &&& (nil() === q) &&& (lto n m);
-    ((!< !1) === q) &&& (eqlo n m) &&& (pluso r m n) &&& (lto r m);
-    ?& [
-      (ltlo m n);
-      (lto r m);
-      (poso q);
-      fresh (nh nl qh ql qlm qlmr rr rh)
-        (splito n r nl nh)
-        (splito q r ql qh)
-        (conde [
-          (nil() === nh) &&& (nil() === qh) &&& (minuso nl r qlm) &&& (multo ql m qlm);
-          ?& [
-            (poso nh);
-            (multo ql m qlm);
-            (pluso qlm r qlmr);
-            (minuso qlmr nl rr);
-            (splito rr r (nil()) rh);
-            (divo nh m qh rh)
-          ]
-        ])
-    ]
-  ]
-
-let rec repeated_mul n q nq =
-  conde [
-    (poso n) &&& (nil() === q) &&& ((!< !1) === nq);
-    ((!< !1) === q) &&& (n === nq);
-    ?& [
-      (gt1o q);
-      fresh (q1 nq1)
-        (pluso q1 (!< !1) q)
-        (repeated_mul n q1 nq1)
-        (multo nq1 n nq)
-    ]
-  ]
-
-let rec exp2 n b q =
-  conde [
-    ((!< !1) === n) &&& (nil() === q);
-    ?& [
-      (gt1o n);
-      ((!< !1) === q);
-      fresh (s)
-        (splito n b s (!< !1))
-    ];
-    fresh (q1 b2)
-      ((!0 % q1) === q)
-      (poso q1)
-      (ltlo b n)
-      (appendo b (!1 % b) b2)
-      (exp2 n b2 q1);
-    fresh (q1 nh b2 s)
-      ((!1 % q1) === q)
-      (poso q1)
-      (poso nh)
-      (splito n b s nh)
-      (appendo b (!1 % b) b2)
-      (exp2 nh b2 q1)
-  ]
-
-let rec logo n b q r =
-  conde [
-    ((!< !1) === n) &&& (poso b) &&& (nil() === q) &&& (nil() === r);
-    (nil() === q) &&& (lto n b) &&& (pluso r (!< !1) n);
-    ((!< !1) === q) &&& (gt1o b) &&& (eqlo n b) &&& (pluso r b n);
-    ((!< !1) === b) &&& (poso q) &&& (pluso r (!< !1) n);
-    (nil() === b) &&& (poso q) &&& (r === n);
-    ?& [
-      ((!0 %< !1) === b);
-      fresh (a ad dd)
-        (poso dd)
-        ((a % (ad % dd)) === n)
-        (exp2 n (nil()) q)
-        (fresh (s)
-          (splito n dd r s)
-        )
-    ];
-    ?& [
-      fresh (a ad add ddd)
-        (conde [
-          ((!1 %< !1) === b);
-          ((a % (ad % (add % ddd))) === b)
-        ]);
-      (ltlo b n);
-      fresh (bw1 bw nw nw1 ql1 ql s)
-        (exp2 b (nil()) bw1)
-        (pluso bw1 (!< !1) bw)
-        (ltlo q n)
-        (fresh (q1 bwq1)
-          (pluso q (!< !1) q1)
-          (multo bw q1 bwq1)
-          (lto nw1 bwq1)
-          (exp2 n (nil()) nw1)
-          (pluso nw1 (!< !1) nw)
-          (divo nw bw ql1 s)
-          (pluso ql (!< !1) ql1)
-          (lelo ql q)
-          (fresh (bql qh s qdh qd)
-            (repeated_mul b ql bql)
-            (divo nw bw1 qh s)
-            (pluso ql qdh qh)
-            (pluso ql qd q)
-            (leo qd qdh)
-            (fresh (bqd bq1 bq)
-              (repeated_mul b qd bqd)
-              (multo bql bqd bq)
-              (multo b bq bq1)
-              (pluso bq r n)
-              (lto n bq1)
-            )
-          )
-        )
-    ]
-  ]
-
-let expo b q n =
-  (logo n b q @@  nil())
-
-let test17 n m =
-  (* n<=m && 2*n = m *)
-  (lelo n m) &&& (multo n (build_num 2) m)
-
-let test27 b q r =
-  (logo (build_num 68) b q r) &&& (gt1o q)
-
-let show_int_list   = GT.(show List.ground @@ show int)
-let show_intl_List = GT.(show List.logic @@ show logic @@ show int)
-
-let _ffoo _ =
-  run_exn show_int_list (-1)  qr qrh (REPR (fun q r     -> multo q r (build_num 1)                          ));
-  run_exn show_int_list (-1)   q  qh (REPR (fun q       -> multo (build_num 7) (build_num 63) q             ));
-  run_exn show_int_list (-1)  qr qrh (REPR (fun q r     -> divo (build_num 3) (build_num 2) q r             ));
-  run_exn show_int_list (-1)   q  qh (REPR (fun q       -> logo (build_num 14) (build_num 2) (build_num 3) q));
-  run_exn show_int_list (-1)   q  qh (REPR (fun q       -> expo (build_num 3) (build_num 5) q               ))
-
-let runL n = runR (List.reify OCanren.reify) show_int_list show_intl_List n
-
-let _freeVars =
-  runL   22  qrs  qrsh (REPR (fun q r s   -> pluso q r s                                      ));
-  runL   34  qrs  qrsh (REPR (fun q r s   -> multo q r s                                      ));
-  runL   10   qr   qrh (REPR (fun q r     -> test17 q r                                       ));
-  runL   15   qr   qrh (REPR (fun q r     -> lelo q r                                         ));
-  runL  (-1)   q    qh (REPR (fun q       -> lto (build_num 5) q                              ));
-  runL  (-1)   q    qh (REPR (fun q       -> lto q (build_num 5)                              ));
-  runL    6 (succ qrs) qrsth (REPR (fun q r s t -> divo q r s t                                     ));
-  runL    5  qrs  qrsh (REPR (fun q r s   -> test27 q r s                                     ))
-
-*)

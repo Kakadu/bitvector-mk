@@ -192,6 +192,8 @@ let to_z3 :
     * (module FORMULA with type t = z3_expr and type term = z3_expr) =
  fun ctx -> (z3_of_term ctx, z3_of_formula ctx)
 
+(* ********************************************************** *)
+
 module type INPUT = functor (T : TERM) (P : FORMULA with type term = T.t) -> sig
   val info : string
 

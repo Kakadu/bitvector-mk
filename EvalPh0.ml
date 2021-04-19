@@ -18,9 +18,14 @@ let evalo bv_impl : Env.injected -> Ph.injected -> goal =
           (termo env a (T.const a2))
           (termo env b (T.const b2))
           (BV.leo a2 b2);
-        fresh (a b) (ph === Ph.conj a b) (evalo env a) (evalo env b);
-        fresh (a b) (ph === Ph.disj a b) (evalo env a) (evalo env b);
-        fresh a (ph === Ph.not a) (evalo env a);
+        (* fresh (a b) (ph === Ph.conj a b) (evalo env a) (evalo env b); *)
+        (* fresh (a b) (ph === Ph.disj a b) (evalo env a) (evalo env b); *)
+        fresh a
+          (ph === Ph.not a)
+          (structural a Ph.reify (function
+            | Value (Ph.Not _) -> false
+            | _ -> true))
+          (evalo env a);
       ]
   and termo env (t : T.injected) (rez : T.injected) =
     let wrap_binop top bvop =
@@ -32,9 +37,10 @@ let evalo bv_impl : Env.injected -> Ph.injected -> goal =
         (termo env r (T.const r2))
         (bvop l2 r2 r0)
     in
-    let wrap_uop uop bvop =
+    let wrap_uop ?(cstr = fun _ -> success) uop bvop =
       fresh (l l2 r0)
         (t === uop l)
+        (cstr l)
         (rez === T.const r0)
         (termo env l (T.const l2))
         (bvop l2 r0)
@@ -42,12 +48,18 @@ let evalo bv_impl : Env.injected -> Ph.injected -> goal =
     conde
       [
         fresh v (t === T.var v) (Env.lookupo v env rez);
-        conde @@ List.map (fun n -> t === T.const (BV.build_num n)) [ 1; 2; 3 ];
+        conde @@ List.map (fun n -> t === T.const (BV.build_num n)) [ 1 ];
         (* wrap_binop T.mul BV.multo; *)
         (* wrap_binop T.add BV.addo; *)
         (* wrap_binop T.sub BV.subo; *)
         (* wrap_uop T.lshiftr1 BV.lshiftr1; *)
-        wrap_uop T.shiftl1 BV.shiftl1;
+        wrap_uop T.shiftl1 BV.shiftl1
+        (*
+          ~cstr:(fun in_ ->
+            (* let (_ : int) = OCanren.structural in *)
+            OCanren.structural in_ T.reify (fun xx ->
+                match xx with Value (T.Shl1 _) -> false | _ -> true))
+                *);
         (* TODO: divo *)
       ]
   in
