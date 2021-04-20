@@ -734,41 +734,40 @@ let create width : (module S) =
 
     let leo a b = leo_helper width a b !!true
 
+    type rez_t = LT | EQ | GT
+
     let rec lto_helper pos l r rez =
       let bit_lto a b rez =
-        trace_int a "    bit_lto.a"
-        &&& trace_int b "    bit_lto.b"
-        &&& conde
-              [
-                a === !!0 &&& (b === !!0) &&& (rez === !!false);
-                a === !!0 &&& (b === !!1) &&& (rez === !!true);
-                a === !!1 &&& (b === !!1) &&& (rez === !!false);
-                a === !!1 &&& (b === !!0) &&& (rez === !!false);
-              ]
+        (* trace_int a "    bit_lto.a"
+           &&& trace_int b "    bit_lto.b" *)
+        (* &&&  *)
+        conde
+          [
+            a === !!0 &&& (b === !!0) &&& (rez === !!EQ);
+            a === !!0 &&& (b === !!1) &&& (rez === !!LT);
+            a === !!1 &&& (b === !!1) &&& (rez === !!EQ);
+            a === !!1 &&& (b === !!0) &&& (rez === !!GT);
+          ]
       in
-      trace_n l "  lto_helper.l "
-      &&& trace_n r "  lto_helper.r "
-      &&& conde
-            [
-              !!pos === !!0
-              &&& conde [ l =/= Std.nil (); r =/= Std.nil () ]
-              &&& failure;
-              !!pos === !!0
-              &&& (l === Std.nil ())
-              &&& (r === l) &&& (rez === !!false);
-              fresh (lh ltl rh rtl top_rez) (!!pos =/= !!0)
-                (l === lh % ltl)
-                (r === rh % rtl)
-                (lto_helper (pos - 1) ltl rtl top_rez)
-                (trace_bool top_rez "  top_rez ")
-                (conde
-                   [
-                     top_rez === !!true &&& (rez === !!true);
-                     top_rez === !!false &&& bit_lto lh rh rez;
-                   ]);
-            ]
+      conde
+        [
+          !!pos === !!0
+          &&& conde [ l =/= Std.nil (); r =/= Std.nil () ]
+          &&& failure;
+          !!pos === !!0 &&& (l === Std.nil ()) &&& (r === l) &&& (rez === !!EQ);
+          fresh (lh ltl rh rtl top_rez) (!!pos =/= !!0)
+            (l === lh % ltl)
+            (r === rh % rtl)
+            (lto_helper (pos - 1) ltl rtl top_rez)
+            (conde
+               [
+                 top_rez === !!GT &&& (rez === !!GT);
+                 top_rez === !!LT &&& (rez === !!LT);
+                 top_rez === !!EQ &&& bit_lto lh rh rez;
+               ]);
+        ]
 
-    let lto l r = lto_helper width l r !!true
+    let lto l r = lto_helper width l r !!LT
 
     let gto a b =
       (* trace_n a "  gto.a " &&& trace_n b "  gto.b " &&&  *)
@@ -902,9 +901,9 @@ let create width : (module S) =
       conde
         [
           fresh (next prev) (lto zero from) (op init next) (subo from one prev)
-            (trace_n from "  from = ")
-            (trace_n init "    init = ")
-            (trace_n next "    next = ")
+            (* (trace_n from "  from = ")
+               (trace_n init "    init = ")
+               (trace_n next "    next = ") *)
             (while_ ~from:prev next op ans);
           fresh () (zero === from) (ans === init);
         ]
@@ -927,15 +926,17 @@ let create width : (module S) =
  *)
     (* Logical <-> MSB will be 0 *)
     let lshiftro op len rez =
-      fresh len1
-        (lando op (build_num (count - 1)) len1)
-        (while_ ~from:len op lshiftr1 rez)
+      conde
+        [
+          leo len (build_num width) &&& while_ ~from:len op lshiftr1 rez;
+          gto len (build_num width) &&& (rez === zero);
+        ]
 
     let shiftlo op len rez =
       conde
         [
           leo len (build_num width)
-          &&& trace_int !!0 "  <=wdith)"
+          (* &&& trace_int !!0 "  <=wdith)" *)
           &&& while_ ~from:len op shiftl1 rez;
           gto len (build_num width) &&& (rez === zero);
         ]
