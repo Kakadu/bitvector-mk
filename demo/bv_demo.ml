@@ -76,7 +76,7 @@ let __ _shifts =
   runL 5 q qh (REPR (fun q -> rotr (build_num 3) q));
   ()
 
-let _mults =
+let __ _mults =
   let (module M) = create 2 in
   let open M in
   let runL n = runR reify show_binary show_logic n in
@@ -92,4 +92,27 @@ let _mults =
   runL 5 q qh (REPR (fun q -> multo (build_num 2) (build_num 2) q));
 
   runL (-1) qrs qrsh (REPR (fun q r s -> multo q r s));
+  ()
+
+let _shifts =
+  let (module M) = create 4 in
+  let open M in
+  let runL n = runR reify show_binary show_logic n in
+
+  runL (-1) qr qrh (REPR (shiftlo (build_num 1)));
+
+  runL (-1) qr qrh (REPR (fun q r -> shiftlo q r (build_num 1)));
+
+  runL 50 qr qrh (REPR (fun q r -> lshiftro q r (build_num 0)));
+
+  (* runL 50 qr qrh (REPR (fun q r -> lando q (build_num 3) (build_num 3))); *)
+
+  (* runL 50 qr qrh (REPR (fun q r -> lando q (build_num 3) r)); *)
+  runL (-1) q qh (REPR (fun q -> shiftlo (build_num 1) (build_num 3) q));
+
+  (* runL 50 q qh (REPR (fun q -> lando (build_num 15) (build_num 15) q)); *)
+  (* runL (-1) q qh (REPR (fun q -> leo (build_num 1) (build_num 2))); *)
+  runL (-1) q qh (REPR (fun q -> lto (build_num 4) (build_num 3)));
+
+  (* runL (-1) qr qrh (REPR (fun q r -> shiftl1 (build_num 1) r &&& shiftl1 r q)); *)
   ()

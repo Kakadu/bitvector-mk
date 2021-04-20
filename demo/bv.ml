@@ -212,6 +212,15 @@ let create width : (module S) =
               success
           | _ -> assert false)
 
+    let trace_bool n fmt =
+      debug_var n
+        (fun a b -> OCanren.reify b a)
+        (function
+          | [ n ] ->
+              Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+                (GT.show OCanren.logic (GT.show GT.bool) n);
+              success
+          | _ -> assert false)
     (* let peano_width : Std.Nat.groundi = Std.Nat.(nat (of_int width)) *)
 
     let rec appendo l s out =
@@ -692,6 +701,106 @@ let create width : (module S) =
 
     let multo n m nm = multo_helper n ~nw:width m ~mw:width nm
 *)
+
+    (* Comparisons *)
+    let rec leo_helper pos l r rez =
+      let bit_leo a b rez =
+        conde
+          [
+            a === !!0 &&& (b === !!0) &&& (rez === !!true);
+            a === !!0 &&& (b === !!1) &&& (rez === !!true);
+            a === !!1 &&& (b === !!1) &&& (rez === !!true);
+            a === !!1 &&& (b === !!0) &&& (rez === !!false);
+          ]
+      in
+      conde
+        [
+          !!pos === !!0
+          &&& conde [ l =/= Std.nil (); r =/= Std.nil () ]
+          &&& failure;
+          !!pos === !!0
+          &&& (l === Std.nil ())
+          &&& (r === l) &&& (rez === !!false);
+          fresh (lh ltl rh rtl top_rez) (!!pos =/= !!0)
+            (l === lh % ltl)
+            (r === rh % rtl)
+            (leo_helper (pos - 1) ltl rtl top_rez)
+            (conde
+               [
+                 top_rez === !!true &&& (rez === !!true);
+                 top_rez === !!false &&& bit_leo lh rh rez;
+               ]);
+        ]
+
+    let leo a b = leo_helper width a b !!true
+
+    let rec lto_helper pos l r rez =
+      let bit_lto a b rez =
+        trace_int a "    bit_lto.a"
+        &&& trace_int b "    bit_lto.b"
+        &&& conde
+              [
+                a === !!0 &&& (b === !!0) &&& (rez === !!false);
+                a === !!0 &&& (b === !!1) &&& (rez === !!true);
+                a === !!1 &&& (b === !!1) &&& (rez === !!false);
+                a === !!1 &&& (b === !!0) &&& (rez === !!false);
+              ]
+      in
+      trace_n l "  lto_helper.l "
+      &&& trace_n r "  lto_helper.r "
+      &&& conde
+            [
+              !!pos === !!0
+              &&& conde [ l =/= Std.nil (); r =/= Std.nil () ]
+              &&& failure;
+              !!pos === !!0
+              &&& (l === Std.nil ())
+              &&& (r === l) &&& (rez === !!false);
+              fresh (lh ltl rh rtl top_rez) (!!pos =/= !!0)
+                (l === lh % ltl)
+                (r === rh % rtl)
+                (lto_helper (pos - 1) ltl rtl top_rez)
+                (trace_bool top_rez "  top_rez ")
+                (conde
+                   [
+                     top_rez === !!true &&& (rez === !!true);
+                     top_rez === !!false &&& bit_lto lh rh rez;
+                   ]);
+            ]
+
+    let lto l r = lto_helper width l r !!true
+
+    let gto a b =
+      (* trace_n a "  gto.a " &&& trace_n b "  gto.b " &&&  *)
+      lto b a
+
+    let geo a b = leo b a
+
+    let lando =
+      let rec helper pos l r lr =
+        conde
+          [
+            !!pos === !!0
+            &&& conde [ l =/= Std.nil (); r =/= Std.nil (); lr =/= Std.nil () ]
+            &&& failure;
+            !!pos === !!0 &&& (l === Std.nil ()) &&& (r === l) &&& (lr === l);
+            fresh (lh ltl rh rtl lrh lrtl) (!!pos =/= !!0)
+              (l === lh % ltl)
+              (r === rh % rtl)
+              (lr === lrh % lrtl)
+              (conde
+                 [
+                   lh === !!0 &&& (lrh === !!0);
+                   lh === !!1 &&& (rh === !!1) &&& (lrh === !!1);
+                   rh === !!0 &&& (lrh === !!0);
+                 ])
+              (helper (pos - 1) ltl rtl lrtl);
+          ]
+      in
+      helper width
+
+    let loro _ _ = assert false
+
     (* Shifts *)
 
     let rec go_left_helper pos prev ins outs last =
@@ -789,56 +898,47 @@ let create width : (module S) =
 
     let ashiftro _ _ _ = assert false
 
-    let lshiftro _ _ _ = assert false
-
-    let shiftlo _ _ _ = assert false
-    (* Comparisons *)
-
-    let leo =
-      let rec helper pos l r =
-        conde
-          [
-            !!pos === !!0
-            &&& conde [ l =/= Std.nil (); r =/= Std.nil () ]
-            &&& failure;
-            !!pos === !!0 &&& (l === Std.nil ()) &&& (r === l);
-            fresh (lh ltl rh rtl) (!!pos =/= !!0)
-              (l === lh % ltl)
-              (r === rh % rtl)
-              (conde
-                 [
-                   lh === rh &&& helper (pos - 1) ltl rtl;
-                   lh === !!0 &&& (rh === !!1) &&& helper (pos - 1) ltl rtl;
-                   lh === !!1 &&& (rh === !!0) &&& failure;
-                 ]);
-          ]
-      in
-      helper width
-
-    let rec lto l r =
+    let rec while_ ~from init op ans =
       conde
         [
-          (* TODO: checking 1st conjunct could be redundant *)
-          l === Std.nil () &&& (r === l) &&& failure;
-          fresh (lh ltl rh rtl)
-            (l === lh % ltl)
-            (r === rh % rtl)
-            (conde
-               [
-                 lh === rh &&& lto ltl rtl;
-                 lh === !!1 &&& (rh === !!0) &&& lto ltl rtl;
-                 lh === !!0 &&& (rh === !!1) &&& success;
-               ]);
+          fresh (next prev) (lto zero from) (op init next) (subo from one prev)
+            (trace_n from "  from = ")
+            (trace_n init "    init = ")
+            (trace_n next "    next = ")
+            (while_ ~from:prev next op ans);
+          fresh () (zero === from) (ans === init);
         ]
 
-    let lando _ _ = assert false
+    (*
+    let spread_length w =
+      let approx = log (float_of_int w) /. log 2.0 in
+      (* ceil rounds up, but (ceil 1.0 = 1.0) *)
+      1 + (int_of_float @@ ceil approx)
 
-    let loro _ _ = assert false
+    let () = assert (spread_length 4 = 3)
 
-    
-    let my_shift_left op len =
-      fresh (len1)
+    let modulo_max =
+      let spread = spread_length width in
 
+      let rec helper pos n rez =
+        conde [ !!n ===!! 0 &&& n === Std.nil () &&& rez === n; !!n =/= !!0 ]
+      in
+      helper width
+ *)
+    (* Logical <-> MSB will be 0 *)
+    let lshiftro op len rez =
+      fresh len1
+        (lando op (build_num (count - 1)) len1)
+        (while_ ~from:len op lshiftr1 rez)
+
+    let shiftlo op len rez =
+      conde
+        [
+          leo len (build_num width)
+          &&& trace_int !!0 "  <=wdith)"
+          &&& while_ ~from:len op shiftl1 rez;
+          gto len (build_num width) &&& (rez === zero);
+        ]
 
     (* let forallo q relo = leo q (build_num (count - 1)) &&& relo q *)
   end in
