@@ -81,79 +81,92 @@ module N = struct
 end
 
 module T = struct
-  type ('self, 'int, 'varname) t =
+  type op = Shl | Lshr | Land | Lor | Mul | Add | Sub
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
+
+  type ('self, 'op, 'int, 'varname) t =
     | Const of 'int
     | Var of 'varname
-    | Shl1 of 'self
-    | Lshr1 of 'self
-    | Land of 'self * 'self
-    | Lor of 'self * 'self
-    | Mul of 'self * 'self
-    | Add of 'self * 'self
-    | Sub of 'self * 'self
+    (* | Shl1 of 'self
+       | Lshr1 of 'self *)
+    | Binop of 'op * 'self * 'self
   [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
 
   open OCanren
 
-  module E = Fmap3 (struct
-    type nonrec ('a, 'b, 'c) t = ('a, 'b, 'c) t
+  module E = Fmap4 (struct
+    type nonrec ('a, 'b, 'c, 'd) t = ('a, 'b, 'c, 'd) t
 
     let fmap eta = GT.gmap t eta
   end)
 
-  type ground = (ground, N.ground, GT.string) t
+  type ground = (ground, op, N.ground, GT.string) t
   [@@deriving gt ~options:{ show; fmt; gmap }]
 
-  type logic = (logic, N.logic, GT.string OCanren.logic) t OCanren.logic
+  type logic =
+    (logic, op OCanren.logic, N.logic, GT.string OCanren.logic) t OCanren.logic
   [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
 
   type nonrec injected = (ground, logic) injected
 
-  let rec reify env x = E.reify reify N.reify OCanren.reify env x
+  let rec reify env x = E.reify reify OCanren.reify N.reify OCanren.reify env x
 
   let const (x : Bv.Repr.injected) : injected = inj @@ E.distrib @@ Const x
 
   let var s : injected = inj @@ E.distrib @@ Var s
 
-  let shiftl1 a : injected = inj @@ E.distrib @@ Shl1 a
+  (* let shiftl1 a : injected = inj @@ E.distrib @@ Shl1 a
 
-  let lshiftr1 a : injected = inj @@ E.distrib @@ Lshr1 a
+     let lshiftr1 a : injected = inj @@ E.distrib @@ Lshr1 a
+  *)
+  let land_ a b = inj @@ E.distrib @@ Binop (!!Land, a, b)
 
-  let land_ a b = inj @@ E.distrib @@ Land (a, b)
+  let lor_ a b = inj @@ E.distrib @@ Binop (!!Lor, a, b)
 
-  let lor_ a b = inj @@ E.distrib @@ Lor (a, b)
+  let mul a b = inj @@ E.distrib @@ Binop (!!Mul, a, b)
 
-  let mul a b = inj @@ E.distrib @@ Mul (a, b)
+  let add a b = inj @@ E.distrib @@ Binop (!!Add, a, b)
 
-  let add a b = inj @@ E.distrib @@ Add (a, b)
+  let sub a b = inj @@ E.distrib @@ Binop (!!Sub, a, b)
 
-  let sub a b = inj @@ E.distrib @@ Sub (a, b)
+  let shl a b = inj @@ E.distrib @@ Binop (!!Shl, a, b)
+
+  let lshr a b = inj @@ E.distrib @@ Binop (!!Lshr, a, b)
 
   let inj =
+    let of_op = function
+      | Add -> add
+      | Sub -> sub
+      | Mul -> mul
+      | Land -> land_
+      | Lor -> lor_
+      | Shl -> shl
+      | Lshr -> lshr
+    in
     let rec helper = function
       | Const n -> const (Bv.Repr.inj n)
       | Var s -> var !!s
-      | Add (l, r) -> add (helper l) (helper r)
-      | Sub (l, r) -> sub (helper l) (helper r)
-      | Mul (l, r) -> mul (helper l) (helper r)
-      | Land (l, r) -> land_ (helper l) (helper r)
-      | Lor (l, r) -> lor_ (helper l) (helper r)
-      | Shl1 l -> shiftl1 (helper l)
-      | Lshr1 l -> lshiftr1 (helper l)
+      | Binop (op, l, r) -> of_op op (helper l) (helper r)
+      (* | Shl1 l -> shiftl1 (helper l)
+         | Lshr1 l -> lshiftr1 (helper l) *)
     in
     helper
 
   let pp : Format.formatter -> ground -> unit =
+    let pp_op ppf = function
+      | Add -> Format.fprintf ppf "bvadd"
+      | Sub -> Format.fprintf ppf "bvsub"
+      | Mul -> Format.fprintf ppf "bvmul"
+      | Land -> Format.fprintf ppf "bvand"
+      | Lor -> Format.fprintf ppf "bvor"
+      | Shl -> Format.fprintf ppf "bvshl"
+      | Lshr -> Format.fprintf ppf "bvlshr"
+    in
     let rec helper ppf = function
       | Const n -> Format.fprintf ppf "%s" (Bv.Repr.show_binary n)
       | Var s -> Format.pp_print_string ppf s
-      | Add (l, r) -> Format.fprintf ppf "(bvadd %a %a)" helper l helper r
-      | Sub (l, r) -> Format.fprintf ppf "(bvsub %a %a)" helper l helper r
-      | Mul (l, r) -> Format.fprintf ppf "(bvmul %a %a)" helper l helper r
-      | Land (l, r) -> Format.fprintf ppf "(bvand %a %a)" helper l helper r
-      | Lor (l, r) -> Format.fprintf ppf "(bvor %a %a)" helper l helper r
-      | Shl1 l -> Format.fprintf ppf "(bvshl %a 1)" helper l
-      | Lshr1 l -> Format.fprintf ppf "(bvlshr %a 1)" helper l
+      | Binop (op, l, r) ->
+          Format.fprintf ppf "(%a %a %a)" pp_op op helper l helper r
       (* | Shl (l, r) -> Format.fprintf ppf "(bvshl %a %a)" helper l helper r
          | Lshr (l, r) -> Format.fprintf ppf "(bvlshr %a %a)" helper l helper r *)
     in
@@ -176,41 +189,51 @@ module T = struct
     let (module T), (module P) = Algebra.to_z3 ctx in
     (* TODO: maybe returned T should already be enriched *)
     let module T = Algebra.EnrichTerm (T) in
+    let on_op = function
+      | Add -> T.add
+      | Sub -> T.sub
+      | Mul -> T.mul
+      | Shl -> T.shl
+      | Lshr -> T.lshr
+      | Land -> T.land_
+      | Lor -> T.lor_
+    in
+
     let rec helper = function
       | Const n -> N.to_smt ctx n
       | Var s -> T.var s
-      | Add (l, r) -> T.add (helper l) (helper r)
-      | Sub (l, r) -> T.sub (helper l) (helper r)
-      | Mul (l, r) -> T.mul (helper l) (helper r)
-      | Shl1 l -> T.shl1 (helper l)
-      | Lshr1 l -> T.lshr1 (helper l)
+      | Binop (op, l, r) -> on_op op (helper l) (helper r)
       (* | Shl (l, r) -> T.shl (helper l) (helper r)
          | Lshr (l, r) -> T.lshr (helper l) (helper r) *)
-      | Land (l, r) -> T.land_ (helper l) (helper r)
-      | Lor (l, r) -> T.lor_ (helper l) (helper r)
     in
     helper
 
   let to_smt_logic_exn ctx : logic -> _ =
     let (module T), _ = Algebra.to_z3 ctx in
     let module T = Algebra.EnrichTerm (T) in
+    let on_op = function
+      | Add -> T.add
+      | Sub -> T.sub
+      | Mul -> T.mul
+      | Shl -> T.shl
+      | Lshr -> T.lshr
+      | Land -> T.land_
+      | Lor -> T.lor_
+    in
     let rec helper : logic -> _ = function
-      | Value (Var (OCanren.Var _)) | Var _ -> failwith "logic inside"
+      | Value (Binop (Var _, _, _)) | Value (Var (OCanren.Var _)) | Var _ ->
+          failwith "logic inside"
       | Value (Const n) -> N.to_smt_logic_exn ctx n
       | Value (Var (OCanren.Value s)) -> T.var s
-      | Value (Add (l, r)) -> T.add (helper l) (helper r)
-      | Value (Sub (l, r)) -> T.sub (helper l) (helper r)
-      | Value (Mul (l, r)) -> T.mul (helper l) (helper r)
-      | Value (Shl1 l) -> T.shl1 (helper l)
-      | Value (Lshr1 l) -> T.lshr1 (helper l)
+      | Value (Binop (Value op, l, r)) -> on_op op (helper l) (helper r)
       (* | Value (Shl (l, r)) -> T.shl (helper l) (helper r)
          | Value (Lshr (l, r)) -> T.lshr (helper l) (helper r) *)
-      | Value (Land (l, r)) -> T.land_ (helper l) (helper r)
-      | Value (Lor (l, r)) -> T.lor_ (helper l) (helper r)
     in
+
     helper
 end
 
+(*
 let rec inhabito_term varo =
   let rec helper (rez : T.injected) =
     let open OCanren in
@@ -238,6 +261,7 @@ let __ () =
   let open OCanren in
   let open Tester in
   run_exn on_ground 20 q qh ("", inhabito_term (fun q -> q === !!"a"))
+ *)
 
 module Ph = struct
   type ('self, 'term) t =
@@ -384,8 +408,8 @@ module Env = struct
 end
 
 (* ********************************************************************* *)
-(*
-let z3_of_term (module BV : Bv.S) ctx :
+
+let mk_of_term (module BV : Bv.S) :
     (module Algebra.TERM with type t = T.injected) =
   let module Ans = struct
     type t = T.injected
@@ -400,9 +424,9 @@ let z3_of_term (module BV : Bv.S) ctx :
 
     let lor_ = T.lor_
 
-    let shl = T.shiftl1
+    let shl = T.shl
 
-    let lshr = T.lshiftr1
+    let lshr = T.lshr
 
     let add = T.add
 
@@ -412,44 +436,41 @@ let z3_of_term (module BV : Bv.S) ctx :
   end in
   (module Ans : Algebra.TERM with type t = T.injected)
 
-let z3_of_formula ctx :
-    (module FORMULA with type t = z3_expr and type term = z3_expr) =
+let mk_of_formula :
+    (module Algebra.FORMULA with type t = Ph.injected and type term = T.injected)
+    =
   let module P = struct
     open Z3
 
-    type t = z3_expr
+    type t = Ph.injected
 
-    type term = z3_expr
+    type term = T.injected
 
-    let iff a b = Boolean.mk_iff ctx a b
+    let iff a b = failwith "not implemented"
 
-    let not = Boolean.mk_not ctx
+    let not = Ph.not
 
-    let conj a b = Boolean.mk_and ctx [ a; b ]
+    let conj = Ph.conj
 
-    let disj a b = Boolean.mk_or ctx [ a; b ]
+    let disj = Ph.disj
 
-    let eq = Boolean.mk_eq ctx
+    let eq = Ph.eq
 
-    let le = BitVector.mk_ule ctx
+    let le = Ph.le
 
-    let lt = BitVector.mk_ult ctx
+    let lt = Ph.lt
 
-    let forall name f =
-      let x = BitVector.mk_const ctx (Symbol.mk_string ctx name) bv_size in
-      Quantifier.expr_of_quantifier
-        (Quantifier.mk_forall_const ctx [ x ] f None [] [] None None)
+    let forall name f = failwith "not implemented"
 
-    let exists name f =
-      let x = BitVector.mk_const ctx (Symbol.mk_string ctx name) bv_size in
-      Quantifier.expr_of_quantifier
-        (Quantifier.mk_exists_const ctx [ x ] f None [] [] None None)
+    let exists name f = failwith "not implemented"
   end in
-  (module P : FORMULA with type t = z3_expr and type term = z3_expr)
+  (module P : Algebra.FORMULA
+    with type t = Ph.injected
+     and type term = T.injected)
 
 let to_mk :
-    Z3.context ->
-    (module TERM with type t = z3_expr)
-    * (module FORMULA with type t = z3_expr and type term = z3_expr) =
- fun ctx -> (z3_of_term ctx, z3_of_formula ctx)
-*)
+    ((module Bv.S) -> (module Algebra.TERM with type t = T.injected))
+    * (module Algebra.FORMULA
+         with type t = Ph.injected
+          and type term = T.injected) =
+  (mk_of_term, mk_of_formula)

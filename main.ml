@@ -17,7 +17,7 @@ let rec inhabito term r =
       fresh a (r === Ph.not a) (inhabito term a);
     ]
 
-let __ () =
+(* let __ () =
   let on_ground x = Format.asprintf "%a" (GT.fmt Ph.ground) x in
   let _on_logic x = GT.show Ph.logic x in
   let open OCanren in
@@ -25,7 +25,7 @@ let __ () =
   (* runR Ph.reify on_ground on_logic 20 q qh ("", fun q -> inhabito q) *)
   run_exn on_ground 20 q qh
     ("", fun q -> inhabito (inhabito_term (fun _ -> failure)) q)
-
+ *)
 module MyQueue : sig
   type t
 
@@ -247,8 +247,9 @@ let test (evalo : (module Bv.S) -> _) m =
           (GT.transform Types.T.t (fun _ ->
                object
                  inherit
-                   [_, _, _, _, _] Types.T.foldl_t_t
+                   [_, _, _, _, _, _] Types.T.foldl_t_t
                      collect_in_term2
+                     (fun acc _ -> acc)
                      (fun acc _ -> acc)
                      (fun acc -> function
                        | Value x -> Algebra.SS.add x acc

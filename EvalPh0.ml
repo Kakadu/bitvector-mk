@@ -53,13 +53,14 @@ let evalo bv_impl : Env.injected -> Ph.injected -> goal =
         (* wrap_binop T.add BV.addo; *)
         (* wrap_binop T.sub BV.subo; *)
         (* wrap_uop T.lshiftr1 BV.lshiftr1; *)
-        wrap_uop T.shiftl1 BV.shiftl1
+        wrap_binop T.shl BV.shiftlo;
+        (* wrap_uop T.shiftl1 BV.shiftl1 *)
         (*
           ~cstr:(fun in_ ->
             (* let (_ : int) = OCanren.structural in *)
             OCanren.structural in_ T.reify (fun xx ->
                 match xx with Value (T.Shl1 _) -> false | _ -> true))
-                *);
+                *)
         (* TODO: divo *)
       ]
   in
