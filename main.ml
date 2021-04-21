@@ -179,6 +179,11 @@ let test (evalo : (module Bv.S) -> _) m =
             Format.printf
               "Predefined answers fits by the opinon of SMT solver!\n%!")
   in
+  let _ =
+    let (module T), (module P) = Types.to_mk (module BV) in
+    let module MkEncoded = I (T) (P) in
+    ()
+  in
 
   let ex_storage, myenqueue =
     let _eval m =

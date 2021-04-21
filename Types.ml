@@ -2,6 +2,8 @@ open OCanren
 
 let flip f a b = f b a
 
+let failwiths ppf = Format.kasprintf failwith ppf
+
 module N = struct
   type ground = Bv.Repr.g
 
@@ -265,6 +267,7 @@ let __ () =
 
 module Ph = struct
   type ('self, 'term) t =
+    | True
     | Conj of 'self * 'self
     | Disj of 'self * 'self
     | Not of 'self
@@ -291,6 +294,8 @@ module Ph = struct
 
   let rec reify env x = E.reify reify T.reify env x
 
+  let true_ : injected = inj @@ E.distrib True
+
   let eq a b = inj @@ E.distrib @@ Eq (a, b)
 
   let lt a b = inj @@ E.distrib @@ Lt (a, b)
@@ -305,6 +310,7 @@ module Ph = struct
 
   let pp_ground : Format.formatter -> ground -> unit =
     let rec helper ppf : ground -> _ = function
+      | True -> Format.fprintf ppf "(= #x1 #x1)"
       | Eq (l, r) ->
           Format.fprintf ppf "(= %a %a)" (GT.fmt T.ground) l (GT.fmt T.ground) r
       | Le (l, r) ->
@@ -336,6 +342,7 @@ module Ph = struct
     let _, (module P) = Algebra.to_z3 ctx in
 
     let rec helper = function
+      | True -> P.true_
       | Eq (l, r) -> P.eq (term l) (term r)
       | Le (l, r) -> P.le (term l) (term r)
       | Lt (l, r) -> P.lt (term l) (term r)
@@ -351,6 +358,7 @@ module Ph = struct
 
     let rec helper = function
       | Var _ -> failwith "free vars inside"
+      | Value True -> P.true_
       | Value (Eq (l, r)) -> P.eq (term l) (term r)
       | Value (Le (l, r)) -> P.le (term l) (term r)
       | Value (Lt (l, r)) -> P.lt (term l) (term r)
@@ -374,7 +382,7 @@ module Env = struct
 
   let empty : injected = Std.nil ()
 
-  let cons name t tail = Std.List.cons (Std.Pair.pair name t) tail
+  let cons name t : injected -> injected = Std.List.cons (Std.Pair.pair name t)
 
   let conso name t (tail : injected) (env : injected) = env === cons name t tail
 
@@ -446,7 +454,9 @@ let mk_of_formula :
 
     type term = T.injected
 
-    let iff a b = failwith "not implemented"
+    let true_ = Ph.true_
+
+    let iff a b = failwiths "not implemented %s %d" __FILE__ __LINE__
 
     let not = Ph.not
 
@@ -460,17 +470,22 @@ let mk_of_formula :
 
     let lt = Ph.lt
 
-    let forall name f = failwith "not implemented"
+    let forall name f =
+      Format.eprintf "forall is not supported\n%s %d" __FILE__ __LINE__;
+      f
 
-    let exists name f = failwith "not implemented"
+    let exists name f =
+      Format.eprintf "exists is not supported\n%s %d" __FILE__ __LINE__;
+      f
   end in
   (module P : Algebra.FORMULA
     with type t = Ph.injected
      and type term = T.injected)
 
 let to_mk :
-    ((module Bv.S) -> (module Algebra.TERM with type t = T.injected))
+    (module Bv.S) ->
+    (module Algebra.TERM with type t = T.injected)
     * (module Algebra.FORMULA
          with type t = Ph.injected
           and type term = T.injected) =
-  (mk_of_term, mk_of_formula)
+ fun ctx -> (mk_of_term ctx, mk_of_formula)

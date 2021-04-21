@@ -141,6 +141,8 @@ module type S = sig
 
   val leo : n -> n -> goal
 
+  val forallo : n -> (n -> goal) -> goal
+
   val width : int
 end
 
@@ -941,6 +943,10 @@ let create width : (module S) =
           gto len (build_num width) &&& (rez === zero);
         ]
 
-    (* let forallo q relo = leo q (build_num (count - 1)) &&& relo q *)
+    let forallo q relo =
+      let rec helper n acc =
+        if n >= count then acc else relo (build_num n) &&& acc
+      in
+      helper 0 success
   end in
   (module M : S)

@@ -57,6 +57,8 @@ module type FORMULA = sig
 
   type term
 
+  val true_ : t
+
   val eq : term -> term -> t
 
   val lt : term -> term -> t
@@ -160,6 +162,8 @@ let z3_of_formula ctx :
 
     type term = z3_expr
 
+    let true_ = Boolean.mk_true ctx
+
     let iff a b = Boolean.mk_iff ctx a b
 
     let not = Boolean.mk_not ctx
@@ -201,6 +205,8 @@ module type INPUT = functor (T : TERM) (P : FORMULA with type term = T.t) -> sig
 
   (* hardcoded predefined answer *)
   val answer : P.t option
+
+  (* val hint :   *)
 end
 
 module SS = Set.Make (String)
@@ -231,6 +237,8 @@ let freevars m =
     type t = SS.t
 
     type term = t
+
+    let true_ = SS.empty
 
     let exists v t = SS.remove v t
 

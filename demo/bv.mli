@@ -1,3 +1,5 @@
+val int_pow : int -> int -> int
+
 module Repr : sig
   open OCanren
 
@@ -93,6 +95,8 @@ module type S = sig
   val lto : n -> n -> goal
 
   val leo : n -> n -> goal
+
+  val forallo : n -> (n -> goal) -> goal
 
   val width : int
 end

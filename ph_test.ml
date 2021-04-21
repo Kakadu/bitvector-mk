@@ -2,7 +2,7 @@ open OCanren
 open Tester
 open Types
 
-let __ =
+let __ __ =
   let (module BV) = Bv.create 4 in
   let runBV =
     Tester.runR Bv.Repr.reify (GT.show Bv.Repr.g) (GT.show Bv.Repr.l)
@@ -80,4 +80,54 @@ let __ =
   *)
   runBV (-1) qr qrh (REPR (fun q r -> BV.leo q r));
 
+  ()
+
+let __ =
+  let (module BV) = Bv.create 4 in
+  let runBV =
+    Tester.runR Bv.Repr.reify (GT.show Bv.Repr.g) (GT.show Bv.Repr.l)
+  in
+  let runF = Tester.runR Ph.reify (GT.show Ph.ground) (GT.show Ph.logic) in
+  let runS = Tester.run_exn (GT.show GT.string) in
+  let runT = Tester.runR T.reify (GT.show T.ground) (GT.show T.logic) in
+  let evalo = EvalPh0.evalo (module BV) in
+  let _ = runT in
+  let _ = runF in
+  let _ = runR in
+  let _ = runS in
+  let _ = runBV in
+  let _ = evalo in
+
+  let _same_answer_count : State.t Stream.t -> _ -> bool =
+   fun s1 s2 ->
+    let n1 = OCanren.Stream.take s1 in
+    let n2 = OCanren.Stream.take s2 in
+    n1 = n2
+  in
+  let _stream_is_singleton ss =
+    match OCanren.Stream.take ~n:2 ss with [ x ] -> true | _ -> false
+  in
+
+  let ph =
+    let (module I : Algebra.INPUT) = Algebra.ex4 in
+    let (module T), (module P) = Types.to_mk (module BV) in
+    let module MkEncoded = I (T) (P) in
+    Option.get MkEncoded.answer
+  in
+
+  let count = Bv.int_pow 2 BV.width - 1 in
+  for i = 1 to count - 1 do
+    for j = 1 to count - 1 do
+      let myenv =
+        Env.cons !!"x" (T.const @@ BV.build_num i)
+        @@ Env.cons !!"y" (T.const @@ BV.build_num j) Env.empty
+      in
+      let s =
+        OCanren.(run q) (fun _ -> EvalPh0.evalo (module BV) myenv ph) Fun.id
+      in
+      if not (_stream_is_singleton s) then
+        Format.eprintf "no answer for i=%d, j=%d\n%!" i j
+      else ()
+    done
+  done;
   ()

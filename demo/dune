@@ -9,6 +9,7 @@
  (modules bv)
  (flags (-rectypes))
  (libraries OCanren OCanren.tester)
+ ;(instrumentation (backend bisect_ppx))
  (preprocess
   (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx ppx_optcomp)))
 
