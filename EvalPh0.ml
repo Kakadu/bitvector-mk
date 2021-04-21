@@ -1,6 +1,16 @@
 open OCanren
 open Types
 
+let trace_int n fmt =
+  debug_var n
+    (fun a b -> OCanren.reify b a)
+    (function
+      | [ n ] ->
+          Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+            (GT.show OCanren.logic (GT.show GT.int) n);
+          success
+      | _ -> assert false)
+
 let evalo bv_impl : Env.injected -> Ph.injected -> goal =
   let (module BV : Bv.S) = bv_impl in
   let rec evalo env ph =
@@ -33,6 +43,7 @@ let evalo bv_impl : Env.injected -> Ph.injected -> goal =
           (structural a Ph.reify (function
             | Value (Ph.Not _) -> false
             | _ -> true))
+          (* SHIT FIX ME *)
           (evalo env a);
       ]
   and termo env (t : T.injected) (rez : T.injected) =
@@ -54,10 +65,26 @@ let evalo bv_impl : Env.injected -> Ph.injected -> goal =
         (termo env l (T.const l2))
         (bvop l2 r0)
     in
+    let rec not_in_envo t env =
+      conde
+        [
+          env === Env.empty;
+          fresh (v t0 env0)
+            (env === Env.cons v t0 env0)
+            (t0 =/= t) (not_in_envo t env0);
+        ]
+    in
     conde
       [
-        fresh v (t === T.var v) (Env.lookupo v env rez);
-        conde @@ List.map (fun n -> t === T.const (BV.build_num n)) [ 1; 2; 3 ];
+        fresh v
+          (t === T.var v)
+          (trace_int !!__LINE__ "line")
+          (Env.lookupo v env rez);
+        conde
+        @@ List.map
+             (fun n ->
+               t === T.const (BV.build_num n) (* &&& not_in_envo t env *))
+             [ 1; 2; 3 ];
         (* wrap_binop T.mul BV.multo; *)
         (* wrap_binop T.add BV.addo; *)
         (* wrap_binop T.sub BV.subo; *)

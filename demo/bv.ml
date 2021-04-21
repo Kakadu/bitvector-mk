@@ -705,14 +705,18 @@ let create width : (module S) =
 *)
 
     (* Comparisons *)
+
+    type rez_t = LT | EQ | GT
+
     let rec leo_helper pos l r rez =
+      (* same as below *)
       let bit_leo a b rez =
         conde
           [
-            a === !!0 &&& (b === !!0) &&& (rez === !!true);
-            a === !!0 &&& (b === !!1) &&& (rez === !!true);
-            a === !!1 &&& (b === !!1) &&& (rez === !!true);
-            a === !!1 &&& (b === !!0) &&& (rez === !!false);
+            a === !!0 &&& (b === !!0) &&& (rez === !!EQ);
+            a === !!0 &&& (b === !!1) &&& (rez === !!LT);
+            a === !!1 &&& (b === !!1) &&& (rez === !!EQ);
+            a === !!1 &&& (b === !!0) &&& (rez === !!GT);
           ]
       in
       conde
@@ -720,23 +724,22 @@ let create width : (module S) =
           !!pos === !!0
           &&& conde [ l =/= Std.nil (); r =/= Std.nil () ]
           &&& failure;
-          !!pos === !!0
-          &&& (l === Std.nil ())
-          &&& (r === l) &&& (rez === !!false);
+          !!pos === !!0 &&& (l === Std.nil ()) &&& (r === l) &&& (rez === !!EQ);
           fresh (lh ltl rh rtl top_rez) (!!pos =/= !!0)
             (l === lh % ltl)
             (r === rh % rtl)
+            (* (trace_n l " leo_helper.l")
+               (trace_n r " leo_helper.r") *)
             (leo_helper (pos - 1) ltl rtl top_rez)
             (conde
                [
-                 top_rez === !!true &&& (rez === !!true);
-                 top_rez === !!false &&& bit_leo lh rh rez;
+                 top_rez === !!GT &&& (rez === !!GT);
+                 top_rez === !!LT &&& (rez === !!LT);
+                 top_rez === !!EQ &&& bit_leo lh rh rez;
                ]);
         ]
 
-    let leo a b = leo_helper width a b !!true
-
-    type rez_t = LT | EQ | GT
+    let leo a b = fresh rez (rez =/= !!GT) (leo_helper width a b rez)
 
     let rec lto_helper pos l r rez =
       let bit_lto a b rez =
@@ -903,9 +906,9 @@ let create width : (module S) =
       conde
         [
           fresh (next prev) (lto zero from) (op init next) (subo from one prev)
-            (* (trace_n from "  from = ")
-               (trace_n init "    init = ")
-               (trace_n next "    next = ") *)
+            (trace_n from "  from = ")
+            (trace_n init "    init = ")
+            (trace_n next "    next = ")
             (while_ ~from:prev next op ans);
           fresh () (zero === from) (ans === init);
         ]
@@ -937,10 +940,11 @@ let create width : (module S) =
     let shiftlo op len rez =
       conde
         [
-          leo len (build_num width)
-          (* &&& trace_int !!0 "  <=wdith)" *)
+          trace_int !!__LINE__ "  __LINE__"
+          &&& lto len (build_num width)
+          &&& trace_int !!__LINE__ "  __LINE__"
           &&& while_ ~from:len op shiftl1 rez;
-          gto len (build_num width) &&& (rez === zero);
+          (* geo len (build_num width) &&& (rez === zero); *)
         ]
 
     let forallo q relo =

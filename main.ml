@@ -305,7 +305,16 @@ let test (evalo : (module Bv.S) -> _) m =
               myenqueue model;
               failure)
     in
-    fresh () (loop ())
+    fresh
+      (ph0 ph1 ph2 ph3 a b l0 l1 l2 l3)
+      (a === Types.(T.var !!"a"))
+      (b === Types.(T.var !!"b"))
+      (ph0 === Types.Ph.le b a)
+      (ph1 === Types.Ph.le (Types.T.shl b l1) a)
+      (ph2 === Types.Ph.le (Types.T.shl b l2) a)
+      (ph3 === Types.Ph.le (Types.T.shl b l3) a)
+      (ans_var === EvalPh0.(Ph.(not (conj ph0 (conj ph1 (conj ph2 ph3))))))
+      (loop ())
       (* TODO: removing constraint below leads to more examples
          FIX: do not add duplicate examples.
       *)

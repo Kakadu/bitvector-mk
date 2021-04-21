@@ -40,3 +40,16 @@ let%test _ = test_multo 1 0 0
 let%test _ = test_multo 1 1 1
 
 let%test _ = test_multo 4 4 (16 mod 16)
+
+let test_shiftl a b ab =
+  checkBV ~v:true
+    BV.(shiftlo (build_num a) (build_num b))
+    ~expected:BV.(of_int ab)
+
+let%test _ = test_shiftl 0 1 0
+
+let%test _ = test_shiftl 1 0 1
+
+let%test _ = test_shiftl 1 1 2
+
+let%test _ = test_shiftl 4 4 0

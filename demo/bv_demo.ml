@@ -109,10 +109,14 @@ let _shifts =
 
   (* runL 50 qr qrh (REPR (fun q r -> lando q (build_num 3) r)); *)
   runL (-1) q qh (REPR (fun q -> shiftlo (build_num 1) (build_num 3) q));
+  runL (-1) q qh (REPR (fun q -> lto (build_num 0) (build_num 4)));
+  runL (-1) q qh (REPR (fun q -> shiftlo (build_num 5) (build_num 0) q));
+  runL (-1) q qh (REPR (fun q -> leo (build_num 4) (build_num 0)));
+  runL (-1) q qh (REPR (fun q -> leo (build_num 1) (build_num 3)));
 
   (* runL 50 q qh (REPR (fun q -> lando (build_num 15) (build_num 15) q)); *)
   (* runL (-1) q qh (REPR (fun q -> leo (build_num 1) (build_num 2))); *)
-  runL (-1) q qh (REPR (fun q -> lto (build_num 4) (build_num 3)));
+  (* runL (-1) q qh (REPR (fun q -> lto (build_num 4) (build_num 3))); *)
 
   (* runL (-1) qr qrh (REPR (fun q r -> shiftl1 (build_num 1) r &&& shiftl1 r q)); *)
   ()
