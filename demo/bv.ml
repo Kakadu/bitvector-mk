@@ -7,6 +7,8 @@ open Tester
 
 [%%undef TRACE]
 
+type cmp_t = LT | EQ | GT
+
 let int_pow base width = int_of_float (float_of_int base ** float_of_int width)
 
 module Repr = struct
@@ -140,6 +142,8 @@ module type S = sig
   val lto : n -> n -> goal
 
   val leo : n -> n -> goal
+
+  val compare_helper : n -> n -> (cmp_t, cmp_t logic) OCanren.injected -> goal
 
   val forallo : n -> (n -> goal) -> goal
 
@@ -706,19 +710,16 @@ let create width : (module S) =
 
     (* Comparisons *)
 
-    type rez_t = LT | EQ | GT
+    let compare_bits a b rez =
+      conde
+        [
+          a === !!0 &&& (b === !!0) &&& (rez === !!EQ);
+          a === !!0 &&& (b === !!1) &&& (rez === !!LT);
+          a === !!1 &&& (b === !!1) &&& (rez === !!EQ);
+          a === !!1 &&& (b === !!0) &&& (rez === !!GT);
+        ]
 
-    let rec leo_helper pos l r rez =
-      (* same as below *)
-      let bit_leo a b rez =
-        conde
-          [
-            a === !!0 &&& (b === !!0) &&& (rez === !!EQ);
-            a === !!0 &&& (b === !!1) &&& (rez === !!LT);
-            a === !!1 &&& (b === !!1) &&& (rez === !!EQ);
-            a === !!1 &&& (b === !!0) &&& (rez === !!GT);
-          ]
-      in
+    let rec compare_helper0 pos l r rez =
       conde
         [
           !!pos === !!0
@@ -730,53 +731,23 @@ let create width : (module S) =
             (r === rh % rtl)
             (* (trace_n l " leo_helper.l")
                (trace_n r " leo_helper.r") *)
-            (leo_helper (pos - 1) ltl rtl top_rez)
+            (compare_helper0 (pos - 1) ltl rtl top_rez)
             (conde
                [
                  top_rez === !!GT &&& (rez === !!GT);
                  top_rez === !!LT &&& (rez === !!LT);
-                 top_rez === !!EQ &&& bit_leo lh rh rez;
+                 top_rez === !!EQ &&& compare_bits lh rh rez;
+                 (* TODO: optimize intro two cases? *)
                ]);
         ]
 
-    let leo a b = fresh rez (rez =/= !!GT) (leo_helper width a b rez)
+    let compare_helper = compare_helper0 width
 
-    let rec lto_helper pos l r rez =
-      let bit_lto a b rez =
-        (* trace_int a "    bit_lto.a"
-           &&& trace_int b "    bit_lto.b" *)
-        (* &&&  *)
-        conde
-          [
-            a === !!0 &&& (b === !!0) &&& (rez === !!EQ);
-            a === !!0 &&& (b === !!1) &&& (rez === !!LT);
-            a === !!1 &&& (b === !!1) &&& (rez === !!EQ);
-            a === !!1 &&& (b === !!0) &&& (rez === !!GT);
-          ]
-      in
-      conde
-        [
-          !!pos === !!0
-          &&& conde [ l =/= Std.nil (); r =/= Std.nil () ]
-          &&& failure;
-          !!pos === !!0 &&& (l === Std.nil ()) &&& (r === l) &&& (rez === !!EQ);
-          fresh (lh ltl rh rtl top_rez) (!!pos =/= !!0)
-            (l === lh % ltl)
-            (r === rh % rtl)
-            (lto_helper (pos - 1) ltl rtl top_rez)
-            (conde
-               [
-                 top_rez === !!GT &&& (rez === !!GT);
-                 top_rez === !!LT &&& (rez === !!LT);
-                 top_rez === !!EQ &&& bit_lto lh rh rez;
-               ]);
-        ]
+    let leo a b = fresh rez (rez =/= !!GT) (compare_helper a b rez)
 
-    let lto l r = lto_helper width l r !!LT
+    let lto a b = fresh rez (rez === !!LT) (compare_helper a b rez)
 
-    let gto a b =
-      (* trace_n a "  gto.a " &&& trace_n b "  gto.b " &&&  *)
-      lto b a
+    let gto a b = lto b a
 
     let geo a b = leo b a
 
@@ -906,9 +877,9 @@ let create width : (module S) =
       conde
         [
           fresh (next prev) (lto zero from) (op init next) (subo from one prev)
-            (trace_n from "  from = ")
-            (trace_n init "    init = ")
-            (trace_n next "    next = ")
+            (* (trace_n from "  from = ")
+               (trace_n init "    init = ")
+               (trace_n next "    next = ") *)
             (while_ ~from:prev next op ans);
           fresh () (zero === from) (ans === init);
         ]
@@ -940,9 +911,10 @@ let create width : (module S) =
     let shiftlo op len rez =
       conde
         [
-          trace_int !!__LINE__ "  __LINE__"
-          &&& lto len (build_num width)
-          &&& trace_int !!__LINE__ "  __LINE__"
+          (* trace_int !!__LINE__ "  __LINE__"
+             &&& *)
+          lto len (build_num width)
+          (* &&& trace_int !!__LINE__ "  __LINE__" *)
           &&& while_ ~from:len op shiftl1 rez;
           (* geo len (build_num width) &&& (rez === zero); *)
         ]

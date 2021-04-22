@@ -2,7 +2,7 @@ open OCanren
 open Tester
 open Types
 
-let __ __ =
+let __ =
   let (module BV) = Bv.create 4 in
   let runBV =
     Tester.runR Bv.Repr.reify (GT.show Bv.Repr.g) (GT.show Bv.Repr.l)
@@ -41,7 +41,11 @@ let __ __ =
   runF 15 q qh
     (REPR
        (fun q ->
-         evalo (Env.cons !!"x" (T.const @@ BV.build_num 15) Env.empty) q));
+         fresh is_tauto
+           (EvalPh0.evalo_helper
+              (module BV)
+              (Env.cons !!"x" (T.const @@ BV.build_num 15) Env.empty)
+              q is_tauto)));
 
   (*
   runS 1 q qh
@@ -82,7 +86,7 @@ let __ __ =
 
   ()
 
-let __ =
+let __ () =
   let (module BV) = Bv.create 4 in
   let runBV =
     Tester.runR Bv.Repr.reify (GT.show Bv.Repr.g) (GT.show Bv.Repr.l)

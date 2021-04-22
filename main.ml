@@ -312,7 +312,7 @@ let test (evalo : (module Bv.S) -> _) m =
       (ph0 === Types.Ph.le b a)
       (ph1 === Types.Ph.le (Types.T.shl b l1) a)
       (ph2 === Types.Ph.le (Types.T.shl b l2) a)
-      (ph3 === Types.Ph.le (Types.T.shl b l3) a)
+      (* (ph3 === Types.Ph.le (Types.T.shl b l3) a) *)
       (ans_var === EvalPh0.(Ph.(not (conj ph0 (conj ph1 (conj ph2 ph3))))))
       (loop ())
       (* TODO: removing constraint below leads to more examples

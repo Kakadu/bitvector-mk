@@ -11,40 +11,56 @@ let trace_int n fmt =
           success
       | _ -> assert false)
 
-let evalo bv_impl : Env.injected -> Ph.injected -> goal =
+let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
   let (module BV : Bv.S) = bv_impl in
-  let rec evalo env ph =
+  let rec evalo env ph is_tauto =
     conde
       [
-        ph === Ph.true_;
+        ph === Ph.true_ &&& (Std.Bool.truo === is_tauto);
         (* fresh (a b r) (ph === Ph.eq a b) (termo env a r) (termo env b r); *)
         (* fresh (a b a2 b2)
            (ph === Ph.lt a b)
            (termo env a (T.const a2))
            (termo env b (T.const b2))
            (BV.lto a2 b2); *)
-        fresh (a b a2 b2 h1 h2)
+        fresh (a b a2 b2 h1 h2 cmp_rez)
           (ph === Ph.le a b)
-          (* (Std.pair a b =/= Std.pair (T.const h1) (T.const h2)) *)
           (termo env a (T.const a2))
           (termo env b (T.const b2))
           (structural (Std.pair a b) (Std.Pair.reify T.reify T.reify) (function
             | Value (Value (T.Const _), Value (T.Const _)) -> false
             | _ -> true))
-          (BV.leo a2 b2);
-        fresh (a b)
+          (BV.compare_helper a2 b2 cmp_rez)
+          (conde
+             [
+               cmp_rez === !!Bv.LT &&& (is_tauto === !!false);
+               cmp_rez =/= !!Bv.LT &&& (is_tauto === !!false);
+             ]);
+        fresh (a b arez brez)
           (ph === Ph.conj a b)
+          (a =/= b)
           (a =/= Ph.not Ph.true_)
           (b =/= Ph.not Ph.true_)
-          (a =/= Ph.true_) (b =/= Ph.true_) (evalo env a) (evalo env b);
+          (a =/= Ph.true_) (b =/= Ph.true_) (evalo env a arez)
+          (evalo env b brez)
+          (conde
+             [
+               arez === !!true &&& (brez === !!true) &&& (is_tauto === !!true);
+               arez === !!false &&& (is_tauto === !!false);
+               brez === !!false &&& (is_tauto === !!false);
+             ]);
         (* fresh (a b) (ph === Ph.disj a b) (evalo env a) (evalo env b); *)
-        fresh a
+        fresh (a nrez)
           (ph === Ph.not a)
           (structural a Ph.reify (function
             | Value (Ph.Not _) -> false
             | _ -> true))
-          (* SHIT FIX ME *)
-          (evalo env a);
+          (evalo env a nrez)
+          (conde
+             [
+               nrez === !!true &&& (is_tauto === !!false);
+               nrez === !!false &&& (is_tauto === !!true);
+             ]);
       ]
   and termo env (t : T.injected) (rez : T.injected) =
     let wrap_binop ?(cstr = fun _ _ -> success) top bvop =
@@ -78,7 +94,7 @@ let evalo bv_impl : Env.injected -> Ph.injected -> goal =
       [
         fresh v
           (t === T.var v)
-          (trace_int !!__LINE__ "line")
+          (* (trace_int !!__LINE__ "line") *)
           (Env.lookupo v env rez);
         conde
         @@ List.map
@@ -104,3 +120,5 @@ let evalo bv_impl : Env.injected -> Ph.injected -> goal =
       ]
   in
   evalo
+
+let evalo bv env ph = evalo_helper bv env ph !!true

@@ -1,3 +1,5 @@
+type cmp_t = LT | EQ | GT
+
 val int_pow : int -> int -> int
 
 module Repr : sig
@@ -95,6 +97,8 @@ module type S = sig
   val lto : n -> n -> goal
 
   val leo : n -> n -> goal
+
+  val compare_helper : n -> n -> (cmp_t, cmp_t logic) OCanren.injected -> goal
 
   val forallo : n -> (n -> goal) -> goal
 
