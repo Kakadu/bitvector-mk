@@ -16,7 +16,7 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
   let rec evalo env ph is_tauto =
     conde
       [
-        ph === Ph.true_ &&& (Std.Bool.truo === is_tauto);
+        (* ph === Ph.true_ &&& (Std.Bool.truo === is_tauto); *)
         (* fresh (a b r) (ph === Ph.eq a b) (termo env a r) (termo env b r); *)
         (* fresh (a b a2 b2)
            (ph === Ph.lt a b)
@@ -25,17 +25,21 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
            (BV.lto a2 b2); *)
         fresh (a b a2 b2 h1 h2 cmp_rez)
           (ph === Ph.le a b)
-          (termo env a (T.const a2))
-          (termo env b (T.const b2))
           (structural (Std.pair a b) (Std.Pair.reify T.reify T.reify) (function
             | Value (Value (T.Const _), Value (T.Const _)) -> false
             | _ -> true))
+          (termo env a (T.const a2))
+          (trace_int !!__LINE__ "a <= gave result")
+          (termo env b (T.const b2))
+          (trace_int !!__LINE__ "<=b gave result")
           (BV.compare_helper a2 b2 cmp_rez)
           (conde
              [
                cmp_rez === !!Bv.LT &&& (is_tauto === !!false);
                cmp_rez =/= !!Bv.LT &&& (is_tauto === !!false);
-             ]);
+             ])
+          (trace_int !!__LINE__ "<= gave result");
+        (*
         fresh (a b arez brez)
           (ph === Ph.conj a b)
           (a =/= b)
@@ -49,7 +53,8 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
                arez === !!false &&& (is_tauto === !!false);
                brez === !!false &&& (is_tauto === !!false);
              ]);
-        (* fresh (a b) (ph === Ph.disj a b) (evalo env a) (evalo env b); *)
+             *)
+        (*
         fresh (a nrez)
           (ph === Ph.not a)
           (structural a Ph.reify (function
@@ -61,6 +66,7 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
                nrez === !!true &&& (is_tauto === !!false);
                nrez === !!false &&& (is_tauto === !!true);
              ]);
+             *)
       ]
   and termo env (t : T.injected) (rez : T.injected) =
     let wrap_binop ?(cstr = fun _ _ -> success) top bvop =
@@ -92,10 +98,12 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
     in
     conde
       [
+        (*
         fresh v
           (t === T.var v)
           (* (trace_int !!__LINE__ "line") *)
           (Env.lookupo v env rez);
+          *)
         conde
         @@ List.map
              (fun n ->
@@ -105,11 +113,13 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
         (* wrap_binop T.add BV.addo; *)
         (* wrap_binop T.sub BV.subo; *)
         (* wrap_uop T.lshiftr1 BV.lshiftr1; *)
+
+        (*
         wrap_binop T.shl BV.shiftlo ~cstr:(fun a b ->
             structural (Std.pair a b) (Std.Pair.reify T.reify T.reify) (function
               | Value (Value (T.Const _), Value (T.Const _)) -> false
               | _ -> true));
-        (* wrap_uop T.shiftl1 BV.shiftl1 *)
+        *)
         (*
           ~cstr:(fun in_ ->
             (* let (_ : int) = OCanren.structural in *)

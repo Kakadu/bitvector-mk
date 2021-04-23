@@ -38,7 +38,7 @@ let __ =
 
      runBV (-1) q qh (REPR (fun q -> BV.lto (BV.build_num 1) (BV.build_num 0)));
   *)
-  runF 15 q qh
+  runF 35 q qh
     (REPR
        (fun q ->
          fresh is_tauto
@@ -82,8 +82,7 @@ let __ =
             (env === Env.cons !!"x" v1 (Env.cons !!"y" v2 Env.empty))
             (forallo (fun q -> EvalPh0.evalo (module BV) env f))));
   *)
-  runBV (-1) qr qrh (REPR (fun q r -> BV.leo q r));
-
+  (* runBV (-1) qr qrh (REPR (fun q r -> BV.leo q r)); *)
   ()
 
 let __ () =
