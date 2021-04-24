@@ -94,7 +94,7 @@ let __ _mults =
   runL (-1) qrs qrsh (REPR (fun q r s -> multo q r s));
   ()
 
-let _shifts =
+let __ _shifts =
   let (module M) = create 4 in
   let open M in
   let runL n = runR reify show_binary show_logic n in
@@ -119,4 +119,16 @@ let _shifts =
   (* runL (-1) q qh (REPR (fun q -> lto (build_num 4) (build_num 3))); *)
 
   (* runL (-1) qr qrh (REPR (fun q r -> shiftl1 (build_num 1) r &&& shiftl1 r q)); *)
+  ()
+
+let _shifts =
+  let (module M) = create 4 in
+  let open M in
+  let runL n = runR reify show_binary show_logic n in
+
+  runL (-1) qr qrh
+    (REPR
+       (fun q r ->
+         fresh verdict (verdict === !!GT) (compare_helper q r verdict)));
+
   ()

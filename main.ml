@@ -168,17 +168,17 @@ let test (evalo : (module Bv.S) -> _) m =
             Format.printf
               "Predefined answers fits by the opinon of SMT solver!\n%!")
   in
-  let _ =
-    match Z3Encoded.answer with
-    | None -> ()
-    | Some answ -> (
-        match check_cand answ with
-        | Z3.Solver.UNKNOWN -> assert false
-        | Z3.Solver.SATISFIABLE -> failwith "Proposed answer is not an answer"
-        | Z3.Solver.UNSATISFIABLE ->
-            Format.printf
-              "Predefined answers fits by the opinon of SMT solver!\n%!")
-  in
+  (* let _ =
+       match Z3Encoded.answer with
+       | None -> ()
+       | Some answ -> (
+           match check_cand answ with
+           | Z3.Solver.UNKNOWN -> assert false
+           | Z3.Solver.SATISFIABLE -> failwith "Proposed answer is not an answer"
+           | Z3.Solver.UNSATISFIABLE ->
+               Format.printf
+                 "Predefined answers fits by the opinon of SMT solver!\n%!")
+     in *)
   let _ =
     let (module T), (module P) = Types.to_mk (module BV) in
     let module MkEncoded = I (T) (P) in
@@ -310,9 +310,9 @@ let test (evalo : (module Bv.S) -> _) m =
       (a === Types.(T.var !!"a"))
       (b === Types.(T.var !!"b"))
       (ph0 === Types.Ph.le b a)
-      (ph1 === Types.Ph.le (Types.T.shl b l1) a)
-      (ph2 === Types.Ph.le (Types.T.shl b l2) a)
-      (* (ph3 === Types.Ph.le (Types.T.shl b l3) a) *)
+      (ph1 === Types.Ph.le l1 a)
+      (ph2 === Types.Ph.le l2 a)
+      (ph3 === Types.Ph.le l3 a)
       (ans_var === EvalPh0.(Ph.(not (conj ph0 (conj ph1 (conj ph2 ph3))))))
       (loop ())
       (* TODO: removing constraint below leads to more examples

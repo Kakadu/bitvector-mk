@@ -7,7 +7,7 @@ open Tester
 
 [%%undef TRACE]
 
-type cmp_t = LT | EQ | GT
+type cmp_t = LT | EQ | GT [@@deriving gt ~options:{ show }]
 
 let int_pow base width = int_of_float (float_of_int base ** float_of_int width)
 

@@ -1,6 +1,31 @@
 open OCanren
 open Types
 
+let debug_n : Bv.Repr.n -> (int logic Std.List.logic list -> goal) -> goal =
+ fun n -> debug_var n (fun a b -> OCanren.Std.List.reify OCanren.reify b a)
+
+let trace_my show n fmt =
+  debug_n n (function
+    | [ n ] ->
+        Format.printf "%s: %s\n%!" (Format.asprintf fmt) (show n);
+        success
+    | _ -> assert false)
+
+let trace_n n fmt = trace_my Bv.Repr.show_logic n fmt
+
+let trace_cmp n fmt =
+  (* trace_my
+     (GT.show Std.List.logic (GT.show OCanren.logic (GT.show Bv.cmp_t)))
+     n fmt *)
+  debug_var n
+    (fun a b -> OCanren.reify b a)
+    (function
+      | [ n ] ->
+          Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+            ((GT.show OCanren.logic (GT.show Bv.cmp_t)) n);
+          success
+      | _ -> assert false)
+
 let trace_int n fmt =
   debug_var n
     (fun a b -> OCanren.reify b a)
@@ -16,7 +41,7 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
   let rec evalo env ph is_tauto =
     conde
       [
-        (* ph === Ph.true_ &&& (Std.Bool.truo === is_tauto); *)
+        ph === Ph.true_ &&& (Std.Bool.truo === is_tauto);
         (* fresh (a b r) (ph === Ph.eq a b) (termo env a r) (termo env b r); *)
         (* fresh (a b a2 b2)
            (ph === Ph.lt a b)
@@ -25,21 +50,27 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
            (BV.lto a2 b2); *)
         fresh (a b a2 b2 h1 h2 cmp_rez)
           (ph === Ph.le a b)
+          (a =/= b) (* (trace_int !!__LINE__ "Ph.le gave result") *)
           (structural (Std.pair a b) (Std.Pair.reify T.reify T.reify) (function
             | Value (Value (T.Const _), Value (T.Const _)) -> false
             | _ -> true))
           (termo env a (T.const a2))
-          (trace_int !!__LINE__ "a <= gave result")
+          (* (trace_int !!__LINE__ "termo a gave result") *)
           (termo env b (T.const b2))
-          (trace_int !!__LINE__ "<=b gave result")
-          (BV.compare_helper a2 b2 cmp_rez)
+          (* (trace_int !!__LINE__ "termo b gave result") *)
           (conde
              [
-               cmp_rez === !!Bv.LT &&& (is_tauto === !!false);
-               cmp_rez =/= !!Bv.LT &&& (is_tauto === !!false);
+               cmp_rez === !!Bv.GT &&& (is_tauto === !!false);
+               cmp_rez =/= !!Bv.GT &&& (is_tauto === !!true);
              ])
-          (trace_int !!__LINE__ "<= gave result");
-        (*
+          (* (trace_int !!__LINE__ "<= gave result") *)
+          (* (trace_n a2 "a2") (trace_n b2 "b2") *)
+          (* (trace_cmp cmp_rez " === cmp_rez") *)
+          (BV.compare_helper a2 b2 cmp_rez)
+          (* (trace_int !!__LINE__ "`compare_helper` gave result") *)
+          (* (trace_n a2 "a2") *)
+          (* (trace_n b2 "b2") *)
+          success;
         fresh (a b arez brez)
           (ph === Ph.conj a b)
           (a =/= b)
@@ -53,8 +84,6 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
                arez === !!false &&& (is_tauto === !!false);
                brez === !!false &&& (is_tauto === !!false);
              ]);
-             *)
-        (*
         fresh (a nrez)
           (ph === Ph.not a)
           (structural a Ph.reify (function
@@ -66,7 +95,6 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
                nrez === !!true &&& (is_tauto === !!false);
                nrez === !!false &&& (is_tauto === !!true);
              ]);
-             *)
       ]
   and termo env (t : T.injected) (rez : T.injected) =
     let wrap_binop ?(cstr = fun _ _ -> success) top bvop =
@@ -98,28 +126,21 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
     in
     conde
       [
-        (*
         fresh v
           (t === T.var v)
           (* (trace_int !!__LINE__ "line") *)
           (Env.lookupo v env rez);
-          *)
-        conde
-        @@ List.map
-             (fun n ->
-               t === T.const (BV.build_num n) (* &&& not_in_envo t env *))
-             [ 1; 2; 3 ];
+        fresh () (t === rez)
+          (conde
+             (List.map (fun n -> t === T.const (BV.build_num n)) [ 1; 2; 3 ]));
         (* wrap_binop T.mul BV.multo; *)
         (* wrap_binop T.add BV.addo; *)
         (* wrap_binop T.sub BV.subo; *)
         (* wrap_uop T.lshiftr1 BV.lshiftr1; *)
-
-        (*
         wrap_binop T.shl BV.shiftlo ~cstr:(fun a b ->
             structural (Std.pair a b) (Std.Pair.reify T.reify T.reify) (function
               | Value (Value (T.Const _), Value (T.Const _)) -> false
               | _ -> true));
-        *)
         (*
           ~cstr:(fun in_ ->
             (* let (_ : int) = OCanren.structural in *)
