@@ -1,8 +1,16 @@
 (* https://z3prover.github.io/api/html/ml/Z3.html
 *)
 
-module type TERM = sig
+module type FINAL_TAGLESS_BASE = sig
   type t
+
+  type rez
+
+  val finish : t -> rez
+end
+
+module type TERM = sig
+  include FINAL_TAGLESS_BASE
 
   val var : string -> t
 
@@ -53,7 +61,7 @@ module EnrichTerm (T : TERM) : RICH_TERM with type t = T.t = struct
 end
 
 module type FORMULA = sig
-  type t
+  include FINAL_TAGLESS_BASE
 
   type term
 
@@ -117,17 +125,22 @@ end
 
 type z3_expr = Z3.Expr.expr
 
-module type FORMULA_Z3 = FORMULA with type t = z3_expr and type term = z3_expr
+module type FORMULA_Z3 =
+  FORMULA with type t = z3_expr and type term = z3_expr and type rez = z3_expr
 
 module type TERM_Z3 = TERM with type t = z3_expr
 
 let bv_size = 4
 
-let z3_of_term ctx : (module TERM_Z3) =
+let z3_of_term ctx =
   let module T = struct
     open Z3
 
     type t = Z3.Expr.expr
+
+    type rez = t
+
+    let finish = Fun.id
 
     let var s = BitVector.mk_const ctx (Symbol.mk_string ctx s) bv_size
 
@@ -151,14 +164,17 @@ let z3_of_term ctx : (module TERM_Z3) =
 
     let mul = BitVector.mk_mul ctx
   end in
-  (module T : TERM with type t = T.t)
+  (module T : TERM with type t = T.t and type rez = T.t)
 
-let z3_of_formula ctx :
-    (module FORMULA with type t = z3_expr and type term = z3_expr) =
+let z3_of_formula ctx =
   let module P = struct
     open Z3
 
     type t = z3_expr
+
+    type rez = t
+
+    let finish = Fun.id
 
     type term = z3_expr
 
@@ -188,12 +204,18 @@ let z3_of_formula ctx :
       Quantifier.expr_of_quantifier
         (Quantifier.mk_exists_const ctx [ x ] f None [] [] None None)
   end in
-  (module P : FORMULA with type t = z3_expr and type term = z3_expr)
+  (module P : FORMULA
+    with type t = z3_expr
+     and type term = z3_expr
+     and type rez = z3_expr)
 
 let to_z3 :
     Z3.context ->
-    (module TERM with type t = z3_expr)
-    * (module FORMULA with type t = z3_expr and type term = z3_expr) =
+    (module TERM with type t = z3_expr and type rez = z3_expr)
+    * (module FORMULA
+         with type t = z3_expr
+          and type term = z3_expr
+          and type rez = z3_expr) =
  fun ctx -> (z3_of_term ctx, z3_of_formula ctx)
 
 (* ********************************************************** *)
@@ -215,6 +237,10 @@ let freevars m =
   let module T = struct
     type t = SS.t
 
+    type rez = SS.t
+
+    let finish = Fun.id
+
     let add = SS.union
 
     let sub = add
@@ -235,6 +261,10 @@ let freevars m =
   end in
   let module P = struct
     type t = SS.t
+
+    type rez = SS.t
+
+    let finish = Fun.id
 
     type term = t
 

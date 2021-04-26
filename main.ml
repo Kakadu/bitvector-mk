@@ -5,18 +5,18 @@ open Types
 [%%define TRACE]
 
 (* [%%undef TRACE] *)
-
+(*
 let rec inhabito term r =
   conde
     [
       fresh (a b) (r === Ph.eq a b) (term a) (term b);
       fresh (a b) (r === Ph.lt a b) (term a) (term b);
       fresh (a b) (r === Ph.le a b) (term a) (term b);
-      fresh (a b) (r === Ph.conj a b) (inhabito term a) (inhabito term b);
-      fresh (a b) (r === Ph.disj a b) (inhabito term a) (inhabito term b);
+      fresh (a b) (r === Ph.conj2 a b) (inhabito term a) (inhabito term b);
+      fresh (a b) (r === Ph.disj2 a b) (inhabito term a) (inhabito term b);
       fresh a (r === Ph.not a) (inhabito term a);
     ]
-
+ *)
 (* let __ () =
   let on_ground x = Format.asprintf "%a" (GT.fmt Ph.ground) x in
   let _on_logic x = GT.show Ph.logic x in
@@ -268,12 +268,14 @@ let test (evalo : (module Bv.S) -> _) m =
           (GT.transform Types.Ph.t (fun _ ->
                object
                  inherit
-                   [_, _, _, _] Types.Ph.foldl_t_t
-                     collect_in_ph collect_in_term2
+                   [_, _, _, _, _, _] Types.Ph.foldl_t_t
+                     collect_in_ph collect_in_ph_list
+                     (fun acc _ -> acc)
+                     collect_in_term2
                      (fun _ _ -> failwith "should not happen")
                end))
           acc
-      in
+      and collect_in_ph_list acc = GT.foldl Std.List.logic collect_in_ph acc in
 
       debug_var q (flip Ph.reify) (fun p ->
           let p : Types.Ph.logic =
@@ -310,10 +312,10 @@ let test (evalo : (module Bv.S) -> _) m =
       (a === Types.(T.var !!"a"))
       (b === Types.(T.var !!"b"))
       (ph0 === Types.Ph.le b a)
-      (ph1 === Types.Ph.le l1 a)
-      (ph2 === Types.Ph.le l2 a)
-      (ph3 === Types.Ph.le l3 a)
-      (ans_var === EvalPh0.(Ph.(not (conj ph0 (conj ph1 (conj ph2 ph3))))))
+      (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a)
+      (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a)
+      (ph3 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a)
+      (ans_var === EvalPh0.(Ph.(not (conj_list [ ph0; ph1; ph2; ph3 ]))))
       (loop ())
       (* TODO: removing constraint below leads to more examples
          FIX: do not add duplicate examples.

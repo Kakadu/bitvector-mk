@@ -37,11 +37,39 @@ let trace_int n fmt =
       | _ -> assert false)
 
 let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
+  (* N.B. Environment never changes *)
   let (module BV : Bv.S) = bv_impl in
-  let rec evalo env ph is_tauto =
+  (* op = `Conj | `Disj
+      prev = first operand
+  *)
+  let rec evalo_list _op _prev env phs is_tauto =
+    let make_decision arez h tl =
+      match _op with
+      | `Conj ->
+          conde
+            [
+              arez === !!true &&& evalo_list _op h env tl is_tauto;
+              arez === !!false &&& (is_tauto === !!false);
+            ]
+      | `Disj ->
+          conde
+            [
+              arez === !!false &&& evalo_list _op h env tl is_tauto;
+              arez === !!true &&& (is_tauto === !!true);
+            ]
+    in
     conde
       [
-        ph === Ph.true_ &&& (Std.Bool.truo === is_tauto);
+        (phs === Std.nil ()
+        &&& match _op with `Conj -> success | `Disj -> failure);
+        fresh (h tl arez)
+          (phs === Std.(h % tl))
+          (evalo env h arez) (make_decision arez h tl);
+      ]
+  and evalo env ph is_tauto =
+    conde
+      [
+        ph === Ph.true_ &&& (!!true === is_tauto);
         (* fresh (a b r) (ph === Ph.eq a b) (termo env a r) (termo env b r); *)
         (* fresh (a b a2 b2)
            (ph === Ph.lt a b)
@@ -71,18 +99,17 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
           (* (trace_n a2 "a2") *)
           (* (trace_n b2 "b2") *)
           success;
-        fresh (a b arez brez)
-          (ph === Ph.conj a b)
-          (a =/= b)
-          (a =/= Ph.not Ph.true_)
-          (b =/= Ph.not Ph.true_)
-          (a =/= Ph.true_) (b =/= Ph.true_) (evalo env a arez)
-          (evalo env b brez)
+        fresh () (ph === Ph.conj (Std.nil ())) (is_tauto === !!true);
+        fresh (a b h tl xs arez)
+          (ph === Ph.conj xs)
+          (xs =/= Std.nil ())
+          (xs === Std.(h % tl))
+          (h =/= Ph.not Ph.true_)
+          (evalo env h arez)
           (conde
              [
-               arez === !!true &&& (brez === !!true) &&& (is_tauto === !!true);
+               arez === !!true &&& evalo_list `Conj h env tl is_tauto;
                arez === !!false &&& (is_tauto === !!false);
-               brez === !!false &&& (is_tauto === !!false);
              ]);
         fresh (a nrez)
           (ph === Ph.not a)

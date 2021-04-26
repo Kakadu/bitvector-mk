@@ -266,60 +266,82 @@ let __ () =
  *)
 
 module Ph = struct
-  type ('self, 'term) t =
+  type binop = Eq | Lt | Le
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
+
+  type ('self, 'selflist, 'binop, 'term) t =
     | True
-    | Conj of 'self * 'self
-    | Disj of 'self * 'self
+    | Conj of 'selflist
+    | Disj of 'selflist
     | Not of 'self
-    | Eq of 'term * 'term
-    | Lt of 'term * 'term
-    | Le of 'term * 'term
+    | Op of 'binop * 'term * 'term
   [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
 
   open OCanren
 
-  module E = Fmap2 (struct
-    type nonrec ('a, 'b) t = ('a, 'b) t
+  module E = Fmap4 (struct
+    type nonrec ('a, 'b, 'c, 'd) t = ('a, 'b, 'c, 'd) t
 
     let fmap eta = GT.gmap t eta
   end)
 
-  type ground = (ground, T.ground) t
+  type ground = (ground, ground Std.List.ground, binop, T.ground) t
   [@@deriving gt ~options:{ show; fmt; gmap }]
 
-  type logic = (logic, T.logic) t OCanren.logic
+  type logic =
+    (logic, logic Std.List.logic, binop OCanren.logic, T.logic) t OCanren.logic
   [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
 
   type nonrec injected = (ground, logic) injected
 
-  let rec reify env x = E.reify reify T.reify env x
+  let rec reify env =
+    E.reify reify (Std.List.reify reify) OCanren.reify T.reify env
 
   let true_ : injected = inj @@ E.distrib True
 
-  let eq a b = inj @@ E.distrib @@ Eq (a, b)
+  let eq a b = inj @@ E.distrib @@ Op (!!Eq, a, b)
 
-  let lt a b = inj @@ E.distrib @@ Lt (a, b)
+  let lt a b = inj @@ E.distrib @@ Op (!!Lt, a, b)
 
-  let le a b = inj @@ E.distrib @@ Le (a, b)
+  let le a b = inj @@ E.distrib @@ Op (!!Le, a, b)
 
-  let conj a b = inj @@ E.distrib @@ Conj (a, b)
+  let conj2 a (b : injected) = inj @@ E.distrib @@ Conj Std.(a % (b % nil ()))
 
-  let disj a b = inj @@ E.distrib @@ Disj (a, b)
+  let conj_list xs : injected = inj @@ E.distrib @@ Conj (Std.list Fun.id xs)
+
+  let conj xs = inj @@ E.distrib @@ Conj xs
+
+  let disj2 a (b : injected) = inj @@ E.distrib @@ Disj Std.(a % (b % nil ()))
+
+  let disj a b = inj @@ E.distrib @@ Disj Std.(a % (b % nil ()))
+
+  let disj_list xs : injected = inj @@ E.distrib @@ Disj (Std.list Fun.id xs)
 
   let not a = inj @@ E.distrib @@ Not a
 
   let pp_ground : Format.formatter -> ground -> unit =
+    let pp_binop ppf = function
+      | Eq -> Format.fprintf ppf "="
+      | Lt -> Format.fprintf ppf "<"
+      | Le -> Format.fprintf ppf "<="
+    in
     let rec helper ppf : ground -> _ = function
       | True -> Format.fprintf ppf "(= #x1 #x1)"
-      | Eq (l, r) ->
-          Format.fprintf ppf "(= %a %a)" (GT.fmt T.ground) l (GT.fmt T.ground) r
-      | Le (l, r) ->
-          Format.fprintf ppf "(<= %a %a)" (GT.fmt T.ground) l (GT.fmt T.ground)
-            r
-      | Lt (l, r) ->
-          Format.fprintf ppf "(< %a %a)" (GT.fmt T.ground) l (GT.fmt T.ground) r
-      | Conj (l, r) -> Format.fprintf ppf "(and %a %a)" helper l helper r
-      | Disj (l, r) -> Format.fprintf ppf "(or %a %a)" helper l helper r
+      | Op (op, l, r) ->
+          Format.fprintf ppf "(%a %a %a)" pp_binop op (GT.fmt T.ground) l
+            (GT.fmt T.ground) r
+      | Conj xs ->
+          Format.fprintf ppf "(and";
+          GT.foldl Std.List.ground
+            (fun () x -> Format.fprintf ppf " %a" helper x)
+            () xs;
+          Format.fprintf ppf ") "
+      | Disj xs ->
+          Format.fprintf ppf "(or";
+          GT.foldl Std.List.ground
+            (fun () x -> Format.fprintf ppf " %a" helper x)
+            () xs;
+          Format.fprintf ppf ") "
       | Not l -> Format.fprintf ppf "(not %a)" helper l
     in
     helper
@@ -343,9 +365,9 @@ module Ph = struct
 
     let rec helper = function
       | True -> P.true_
-      | Eq (l, r) -> P.eq (term l) (term r)
-      | Le (l, r) -> P.le (term l) (term r)
-      | Lt (l, r) -> P.lt (term l) (term r)
+      | Op (Eq, l, r) -> P.eq (term l) (term r)
+      | Op (Le, l, r) -> P.le (term l) (term r)
+      | Op (Lt, l, r) -> P.lt (term l) (term r)
       | Conj (l, r) -> P.conj (helper l) (helper r)
       | Disj (l, r) -> P.disj (helper l) (helper r)
       | Not l -> P.not (helper l)
@@ -356,15 +378,20 @@ module Ph = struct
     let term = T.to_smt_logic_exn ctx in
     let _, (module P) = Algebra.to_z3 ctx in
 
-    let rec helper = function
-      | Var _ -> failwith "free vars inside"
+    let rec helper : logic -> _ = function
+      | Value (Op (Var _, _, _)) | Var _ -> failwith "free vars inside"
       | Value True -> P.true_
-      | Value (Eq (l, r)) -> P.eq (term l) (term r)
-      | Value (Le (l, r)) -> P.le (term l) (term r)
-      | Value (Lt (l, r)) -> P.lt (term l) (term r)
-      | Value (Conj (l, r)) -> P.conj (helper l) (helper r)
-      | Value (Disj (l, r)) -> P.disj (helper l) (helper r)
+      | Value (Op (Value Eq, l, r)) -> P.eq (term l) (term r)
+      | Value (Op (Value Le, l, r)) -> P.le (term l) (term r)
+      | Value (Op (Value Lt, l, r)) -> P.lt (term l) (term r)
+      | Value (Conj xs) -> helper_list P.conj ~on_empty:(P.not P.true_) xs
+      | Value (Disj xs) -> helper_list P.disj ~on_empty:P.true_ xs
       | Value (Not l) -> P.not (helper l)
+    and helper_list ~on_empty op = function
+      | Var _ -> failwith "free vars inside"
+      | Value (Std.List.Cons (e, tl)) ->
+          op (helper e) (helper_list ~on_empty op tl)
+      | Value Std.List.Nil -> on_empty
     in
     helper
 end
@@ -417,12 +444,15 @@ end
 
 (* ********************************************************************* *)
 
-let mk_of_term (module BV : Bv.S) :
-    (module Algebra.TERM with type t = T.injected) =
+let mk_of_term (module BV : Bv.S) =
   let module Ans = struct
     type t = T.injected
 
-    let var s = T.var !!s
+    type rez = t
+
+    let finish = Fun.id
+
+    let var s : t = T.var !!s
 
     let const n = T.const (BV.build_num n)
 
@@ -444,31 +474,44 @@ let mk_of_term (module BV : Bv.S) :
   end in
   (module Ans : Algebra.TERM with type t = T.injected)
 
-let mk_of_formula :
-    (module Algebra.FORMULA with type t = Ph.injected and type term = T.injected)
-    =
+let mk_of_formula =
   let module P = struct
     open Z3
 
-    type t = Ph.injected
+    type rez = Ph.injected
+
+    type t = Conjs of rez list | Disjs of rez list | Final of rez
+
+    let finish = function
+      | Final x -> x
+      | Disjs xs -> Ph.disj_list xs
+      | Conjs xs -> Ph.conj_list xs
 
     type term = T.injected
 
-    let true_ = Ph.true_
+    let true_ = Final Ph.true_
 
     let iff a b = failwiths "not implemented %s %d" __FILE__ __LINE__
 
-    let not = Ph.not
+    let not f = Final (Ph.not (finish f))
 
-    let conj = Ph.conj
+    let conj x y =
+      match (x, y) with
+      | Conjs xs, Conjs ys -> Conjs (List.append xs ys)
+      | Final x, Conjs xs | Conjs xs, Final x -> Conjs (x :: xs)
+      | _, _ -> Final (Ph.conj2 (finish x) (finish y))
 
-    let disj = Ph.disj
+    let disj x y =
+      match (x, y) with
+      | Disjs xs, Disjs ys -> Disjs (List.append xs ys)
+      | Final x, Disjs xs | Disjs xs, Final x -> Disjs (x :: xs)
+      | _, _ -> Final (Ph.disj2 (finish x) (finish y))
 
-    let eq = Ph.eq
+    let eq x y = Final (Ph.eq x y)
 
-    let le = Ph.le
+    let le x y = Final (Ph.le x y)
 
-    let lt = Ph.lt
+    let lt x y = Final (Ph.lt x y)
 
     let forall name f =
       Format.eprintf "forall is not supported\n%s %d" __FILE__ __LINE__;
@@ -479,13 +522,13 @@ let mk_of_formula :
       f
   end in
   (module P : Algebra.FORMULA
-    with type t = Ph.injected
+    with type rez = Ph.injected
      and type term = T.injected)
 
 let to_mk :
     (module Bv.S) ->
     (module Algebra.TERM with type t = T.injected)
     * (module Algebra.FORMULA
-         with type t = Ph.injected
+         with type rez = Ph.injected
           and type term = T.injected) =
  fun ctx -> (mk_of_term ctx, mk_of_formula)
