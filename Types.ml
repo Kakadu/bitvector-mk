@@ -82,6 +82,8 @@ module N = struct
     T.const_s (string_of_int !acc)
 end
 
+exception HasFreeVars of string Lazy.t
+
 module T = struct
   type op = Shl | Lshr | Land | Lor | Mul | Add | Sub
   [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
@@ -210,7 +212,10 @@ module T = struct
     in
     helper
 
+  type ctx = CtxConj | CtxDisj | CtxAny
+
   let to_smt_logic_exn ctx : logic -> _ =
+   fun root ->
     let (module T), _ = Algebra.to_z3 ctx in
     let module T = Algebra.EnrichTerm (T) in
     let on_op = function
@@ -223,8 +228,16 @@ module T = struct
       | Lor -> T.lor_
     in
     let rec helper : logic -> _ = function
-      | Value (Binop (Var _, _, _)) | Value (Var (OCanren.Var _)) | Var _ ->
-          failwith "logic inside"
+      | Value (Binop (Var _, _, _)) ->
+          (* failwiths "logic inside %s %d: " __FILE__ __LINE__ *)
+          raise (HasFreeVars (lazy ""))
+      | Value (Var (OCanren.Var _)) ->
+          (* failwiths "logic inside %s %d" __FILE__ __LINE__ *)
+          raise (HasFreeVars (lazy ""))
+      | Var _ ->
+          (* failwiths "logic inside %s %d: `%s`" __FILE__ __LINE__
+             (GT.show logic root); *)
+          raise (HasFreeVars (lazy ""))
       | Value (Const n) -> N.to_smt_logic_exn ctx n
       | Value (Var (OCanren.Value s)) -> T.var s
       | Value (Binop (Value op, l, r)) -> on_op op (helper l) (helper r)
@@ -232,7 +245,7 @@ module T = struct
          | Value (Lshr (l, r)) -> T.lshr (helper l) (helper r) *)
     in
 
-    helper
+    helper root
 end
 
 (*
@@ -379,7 +392,7 @@ module Ph = struct
     let _, (module P) = Algebra.to_z3 ctx in
 
     let rec helper : logic -> _ = function
-      | Value (Op (Var _, _, _)) | Var _ -> failwith "free vars inside"
+      | Value (Op (Var _, _, _)) | Var _ -> raise (HasFreeVars (lazy ""))
       | Value True -> P.true_
       | Value (Op (Value Eq, l, r)) -> P.eq (term l) (term r)
       | Value (Op (Value Le, l, r)) -> P.le (term l) (term r)
@@ -388,7 +401,7 @@ module Ph = struct
       | Value (Disj xs) -> helper_list P.disj ~on_empty:P.true_ xs
       | Value (Not l) -> P.not (helper l)
     and helper_list ~on_empty op = function
-      | Var _ -> failwith "free vars inside"
+      | Var _ -> raise (HasFreeVars (lazy ""))
       | Value (Std.List.Cons (e, tl)) ->
           op (helper e) (helper_list ~on_empty op tl)
       | Value Std.List.Nil -> on_empty

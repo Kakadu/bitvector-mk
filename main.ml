@@ -2,6 +2,24 @@ open Format
 open OCanren
 open Types
 
+module Options = struct
+  type options = { mutable max_answers : int }
+
+  let max { max_answers } = max_answers
+
+  let set_max o n = o.max_answers <- n
+
+  let create () = { max_answers = 1 }
+end
+
+let options = Options.create ()
+
+let () =
+  Arg.parse
+    [ ("-max", Arg.Int (Options.set_max options), "maximum answers count") ]
+    (fun _ -> Printf.printf "anonymous arguments not supported\n")
+    "usage"
+
 [%%define TRACE]
 
 (* [%%undef TRACE] *)
@@ -288,34 +306,41 @@ let test (evalo : (module Bv.S) -> _) m =
     let cutter q =
       debug_var q (flip Ph.reify) (fun p ->
           let p = match p with [ h ] -> h | _ -> assert false in
+          try
+            (* There we should encode logic formula p to SMT and check that
+                not (I <=> p) is unsat
+            *)
+            let candidate = Ph.to_smt_logic_exn ctx p in
 
-          (* There we should encode logic formula p to SMT and check that
-              not (I <=> p) is unsat
-          *)
-          let candidate = Ph.to_smt_logic_exn ctx p in
-
-          let q = F.(not (iff candidate Z3Encoded.ph)) in
-          trace_intermediate_candidate candidate;
-          match run_solver q with
-          | Z3.Solver.UNKNOWN ->
-              failwith "Solver should not return UNKNOWN result"
-          | UNSATISFIABLE ->
-              trace_on_success ex_storage solver_count;
-              success
-          | SATISFIABLE ->
-              let model = Z3.Solver.get_model solver |> Option.get in
-              myenqueue model;
-              failure)
+            let q = F.(not (iff candidate Z3Encoded.ph)) in
+            trace_intermediate_candidate candidate;
+            match run_solver q with
+            | Z3.Solver.UNKNOWN ->
+                failwith "Solver should not return UNKNOWN result"
+            | UNSATISFIABLE ->
+                trace_on_success ex_storage solver_count;
+                success
+            | SATISFIABLE ->
+                let model = Z3.Solver.get_model solver |> Option.get in
+                myenqueue model;
+                failure
+          with HasFreeVars s ->
+            Format.eprintf "Got a phormula with free variables:\n`%s`\n%!"
+              (Lazy.force s);
+            failure)
     in
     fresh
       (ph0 ph1 ph2 ph3 a b l0 l1 l2 l3)
+      (*
       (a === Types.(T.var !!"a"))
       (b === Types.(T.var !!"b"))
       (ph0 === Types.Ph.le b a)
       (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a)
       (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a)
-      (ph3 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a)
+      (* (ph3 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a) *)
+      (ph3 === Types.Ph.le (Types.T.shl b l3) a)
       (ans_var === EvalPh0.(Ph.(not (conj_list [ ph0; ph1; ph2; ph3 ]))))
+      *)
       (loop ())
       (* TODO: removing constraint below leads to more examples
          FIX: do not add duplicate examples.
@@ -323,6 +348,6 @@ let test (evalo : (module Bv.S) -> _) m =
       (* (enough_variables ans_var) *)
       (cutter ans_var)
   in
-  runR Ph.reify on_ground on_logic 1 q qh ("", goal)
+  runR Ph.reify on_ground on_logic (Options.max options) q qh ("", goal)
 
 let () = test EvalPh0.evalo Algebra.ex4

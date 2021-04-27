@@ -1,0 +1,16 @@
+(declare-const x (_ BitVec 4))
+;(declare-fun x () (_ BitVec 4))
+;(define-fun x () (_ BitVec 4))
+;(assert (= x   (bvadd #x07 #x03)))
+
+(push)
+(assert (and (bvslt (bvneg x) #x0) (bvsle x #b0000)))
+(check-sat)
+(get-model)
+(pop)
+
+(push)
+(assert (and (bvslt (bvneg x) #x0) (bvsle x #b0000)))
+(check-sat)
+(get-model)
+(pop)
