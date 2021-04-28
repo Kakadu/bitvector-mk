@@ -48,7 +48,7 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
     | `Disj ->
         structural ph Ph.reify (function Value (Disj _) -> false | _ -> true)
   in
-  let rec evalo_list op _prev env phs is_tauto =
+  let rec evalo_list op prev env phs is_tauto =
     let make_decision arez h tl =
       match op with
       | `Conj ->
@@ -70,7 +70,13 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
         &&& match op with `Conj -> success | `Disj -> failure);
         fresh (h tl arez)
           (phs === Std.(h % tl))
-          (cut_bad_syntax op h) (evalo env h arez) (make_decision arez h tl);
+          (h =/= prev) (cut_bad_syntax op h)
+          (OCanren.structural (Std.pair prev h)
+             (Std.Pair.reify Ph.reify Ph.reify) (function
+            | Var _ -> failwiths "should not happen"
+            | Value (a, b) when Ph.compare_le a b -> true
+            | Value _ -> false))
+          (evalo env h arez) (make_decision arez h tl);
       ]
   and evalo env ph is_tauto =
     conde
@@ -79,6 +85,9 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
         fresh (a b a2 b2 h1 h2 cmp_rez)
           (ph === Ph.le a b)
           (a =/= b)
+          (structural (Std.pair a b) (Std.Pair.reify T.reify T.reify) (function
+            | Value (Value (T.Const _), Value (T.Const _)) -> false
+            | _ -> true))
           (termo env a (T.const a2))
           (termo env b (T.const b2))
           (conde

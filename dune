@@ -13,7 +13,7 @@
  (libraries OCanren OCanren.tester bv z3)
  (wrapped false)
  (preprocess
-  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl )))
+  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl GT.syntax.compare )))
 
 (executable
  (name ph_test)

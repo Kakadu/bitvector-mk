@@ -59,9 +59,7 @@ module Repr = struct
   let g =
     {
       GT.gcata = ();
-      (* (fun tr _ _ -> assert false); *)
       GT.fix = ();
-      (* (fun _ _ -> assert false); *)
       GT.plugins =
         object
           method show = show
@@ -69,15 +67,16 @@ module Repr = struct
           method gmap = Fun.id
 
           method fmt ppf x = Format.fprintf ppf "%s" (show x)
+
+          method compare : g -> g -> GT.comparison =
+            GT.compare Std.List.ground (GT.compare GT.int)
         end;
     }
 
   let l =
     {
       GT.gcata = ();
-      (* (fun tr _ _ -> assert false); *)
       GT.fix = ();
-      (* (fun _ _ -> assert false); *)
       GT.plugins =
         object
           method show = show_logic
@@ -88,6 +87,10 @@ module Repr = struct
 
           method foldl =
             GT.foldl Std.List.logic (GT.foldl OCanren.logic @@ GT.foldl GT.int)
+
+          method compare =
+            GT.compare Std.List.logic
+              (GT.compare OCanren.logic @@ GT.compare GT.int)
         end;
     }
 end

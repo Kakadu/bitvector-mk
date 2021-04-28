@@ -86,7 +86,7 @@ exception HasFreeVars of string Lazy.t
 
 module T = struct
   type op = Shl | Lshr | Land | Lor | Mul | Add | Sub
-  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
   type ('self, 'op, 'int, 'varname) t =
     | Const of 'int
@@ -94,7 +94,7 @@ module T = struct
     (* | Shl1 of 'self
        | Lshr1 of 'self *)
     | Binop of 'op * 'self * 'self
-  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
   open OCanren
 
@@ -109,10 +109,22 @@ module T = struct
 
   type logic =
     (logic, op OCanren.logic, N.logic, GT.string OCanren.logic) t OCanren.logic
-  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
   type nonrec injected = (ground, logic) injected
 
+  let lt_logic : logic -> logic -> bool =
+   fun a b -> GT.compare logic a b = GT.LT
+
+  (* let rec helper : logic * logic -> bool = function
+       | _, Var _ -> false (* var is smallest *)
+       | Var _, Value (Const _) -> true
+       | _, Value (Const _) -> false
+       | Value (Const _), Value (Binop (_, _, _)) -> false
+       | Value (Binop (o[]))
+     in
+
+     helper (a, b) *)
   let rec reify env x = E.reify reify OCanren.reify N.reify OCanren.reify env x
 
   let const (x : Bv.Repr.injected) : injected = inj @@ E.distrib @@ Const x
@@ -244,7 +256,6 @@ module T = struct
       (* | Value (Shl (l, r)) -> T.shl (helper l) (helper r)
          | Value (Lshr (l, r)) -> T.lshr (helper l) (helper r) *)
     in
-
     helper root
 end
 
@@ -280,7 +291,7 @@ let __ () =
 
 module Ph = struct
   type binop = Eq | Lt | Le
-  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
   type ('self, 'selflist, 'binop, 'term) t =
     | True
@@ -288,7 +299,7 @@ module Ph = struct
     | Disj of 'selflist
     | Not of 'self
     | Op of 'binop * 'term * 'term
-  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
   open OCanren
 
@@ -303,7 +314,7 @@ module Ph = struct
 
   type logic =
     (logic, logic Std.List.logic, binop OCanren.logic, T.logic) t OCanren.logic
-  [@@deriving gt ~options:{ show; fmt; gmap; foldl }]
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
   type nonrec injected = (ground, logic) injected
 
@@ -392,14 +403,24 @@ module Ph = struct
     let _, (module P) = Algebra.to_z3 ctx in
 
     let rec helper : logic -> _ = function
-      | Value (Op (Var _, _, _)) | Var _ -> raise (HasFreeVars (lazy ""))
+      | Value (Op (Var _, _, _))
+      | Value (Conj (Var _))
+      | Value (Disj (Var _))
+      | Var _ ->
+          raise (HasFreeVars (lazy ""))
       | Value True -> P.true_
+      | Value (Not l) -> P.not (helper l)
       | Value (Op (Value Eq, l, r)) -> P.eq (term l) (term r)
       | Value (Op (Value Le, l, r)) -> P.le (term l) (term r)
       | Value (Op (Value Lt, l, r)) -> P.lt (term l) (term r)
-      | Value (Conj xs) -> helper_list P.conj ~on_empty:(P.not P.true_) xs
-      | Value (Disj xs) -> helper_list P.disj ~on_empty:P.true_ xs
-      | Value (Not l) -> P.not (helper l)
+      | Value (Conj (Value Std.List.Nil)) ->
+          raise (HasFreeVars (lazy "We should not get empty conjunctions"))
+      | Value (Conj (Value (Std.List.Cons (h, tl)))) ->
+          helper_list P.conj ~on_empty:(helper h) tl
+      | Value (Disj (Value Std.List.Nil)) ->
+          raise (HasFreeVars (lazy "We should not get empty disjunctions"))
+      | Value (Disj (Value (Std.List.Cons (h, tl)))) ->
+          helper_list P.disj ~on_empty:(helper h) tl
     and helper_list ~on_empty op = function
       | Var _ -> raise (HasFreeVars (lazy ""))
       | Value (Std.List.Cons (e, tl)) ->
@@ -407,6 +428,30 @@ module Ph = struct
       | Value Std.List.Nil -> on_empty
     in
     helper
+
+  let compare_le a b =
+    match (a, b) with
+    | Var _, _ | _, Var _ -> true
+    | _ -> (
+        match GT.compare logic a b with
+        | GT.GT ->
+            Format.printf "\t\tACHTUNG: `%s` > `%s`\n%!" (GT.show logic a)
+              (GT.show logic b);
+            false
+        | _ -> true)
+
+  let my_lessthan (a : logic) (b : logic) =
+    let rec helper = function
+      | _, Var _ | Var _, _ -> GT.LT
+      | Value av, Value bv -> assert false
+    and helper_nologic = function
+    (* True << Conj <<  Disj << Not << Op *)
+    | True,True -> GT.LT
+    | _, True -> GT.GT
+    |
+    | _, _ -> true in
+
+    helper (a, b)
 end
 
 (* TODO: Here environment containts terms but in practice it's likely that we will need only constants *)

@@ -27,7 +27,8 @@ module Repr : sig
     ( unit,
       < show : g -> string
       ; gmap : g -> g
-      ; fmt : Format.formatter -> g -> unit >,
+      ; fmt : Format.formatter -> g -> unit
+      ; compare : g -> g -> GT.comparison >,
       unit )
     GT.t
 
@@ -36,6 +37,7 @@ module Repr : sig
       < show : l -> string
       ; gmap : l -> l
       ; fmt : Format.formatter -> l -> unit
+      ; compare : l -> l -> GT.comparison
       ; foldl : 'a -> l -> 'a >,
       unit )
     GT.t
