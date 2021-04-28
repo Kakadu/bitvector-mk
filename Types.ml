@@ -441,15 +441,41 @@ module Ph = struct
         | _ -> true)
 
   let my_lessthan (a : logic) (b : logic) =
-    let rec helper = function
+    let rec helper : logic * _ -> _ = function
       | _, Var _ | Var _, _ -> GT.LT
-      | Value av, Value bv -> assert false
+      | Value av, Value bv -> helper_nologic (av, bv)
     and helper_nologic = function
-    (* True << Conj <<  Disj << Not << Op *)
-    | True,True -> GT.LT
-    | _, True -> GT.GT
-    |
-    | _, _ -> true in
+      (* True << Conj <<  Disj << Not << Op *)
+      | True, True -> GT.EQ
+      | _, True -> GT.GT
+      | True, _ -> GT.LT
+      | Conj (Value Std.List.Nil), Conj (Value Std.List.Nil) -> GT.EQ
+      | Conj (Value Std.List.Nil), Conj (Value (Std.List.Cons (_, _))) -> GT.LT
+      | ( Conj (Value (Std.List.Cons (h1, _))),
+          Conj (Value (Std.List.Cons (h2, _))) )
+        when helper (h1, h2) = LT ->
+          GT.LT
+      | ( Conj (Value (Std.List.Cons (_, t1))),
+          Conj (Value (Std.List.Cons (_, t2))) ) ->
+          helper_nologic (Conj (Value t1), (Conj (Value t2)))
+      | Conj (Var _), Conj _ | Conj _, Conj (Var _) -> GT.LT
+      | Conj (Value (Std.List.Cons (_, _))), Conj (Value Std.List.Nil) -> GT.GT
+      | Conj _, _ -> GT.LT
+      | _, Conj _ -> GT.GT
+      | Disj _, _ | _, Disj _ -> failwith "not implemented"
+      | Not a, Not b -> helper (a, b)
+      | Not _, _ -> GT.LT
+      | _, Not _ -> GT.GT
+      | Op (op1, l1, r1), Op (op2, l2, r2) ->
+          GT.chain_compare
+            (helper_opl (op1, op2))
+            (fun () ->
+              GT.chain_compare (helper (l1, l2)) (fun () -> helper (r1, r2)))
+    and helper_opl = function
+      | Var _, _ | _, Var _ -> GT.LT
+      | Value l, Value r ->
+          GT.compare GT.int Obj.(tag @@ Obj.repr l) Obj.(tag @@ repr r)
+    in
 
     helper (a, b)
 end
