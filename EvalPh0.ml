@@ -71,12 +71,18 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
         fresh (h tl arez)
           (phs === Std.(h % tl))
           (h =/= prev) (cut_bad_syntax op h)
-          (OCanren.structural (Std.pair prev h)
-             (Std.Pair.reify Ph.reify Ph.reify) (function
-            | Var _ -> failwiths "should not happen"
-            | Value (a, b) when Ph.compare_le a b -> true
-            | Value _ -> false))
-          (evalo env h arez) (make_decision arez h tl);
+          (* (OCanren.structural (Std.pair prev h)
+              (Std.Pair.reify Ph.reify Ph.reify) (function
+             | Var _ -> failwiths "should not happen"
+             | Value (a, b) -> (
+                 match GT.compare Ph.logic a b with
+                 | LT -> true
+                 | _ ->
+                     Format.printf "comparsion said (not<=): %a and %a\n%!"
+                       (GT.fmt Ph.logic) a (GT.fmt Ph.logic) b;
+                     false))) *)
+          (evalo env h arez)
+          (make_decision arez h tl);
       ]
   and evalo env ph is_tauto =
     conde
@@ -99,13 +105,23 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
         fresh () (ph === Ph.conj (Std.nil ())) failure;
         fresh (a b h tl arez)
           (ph === Ph.conj Std.(h % tl))
+          (* (trace_int !!__LINE__ "before cut_bad_syntax") *)
           (cut_bad_syntax `Conj h)
+          (* (trace_int !!__LINE__ "after cut_bad_syntax") *)
           (evalo env h arez)
           (conde
              [
                arez === !!true &&& evalo_list `Conj h env tl is_tauto;
                arez === !!false &&& (is_tauto === !!false);
              ]);
+        fresh (prev rez)
+          (ph === Ph.not prev)
+          (conde
+             [
+               is_tauto === !!true &&& (rez === !!false);
+               is_tauto === !!false &&& (rez === !!true);
+             ])
+          (evalo env prev rez);
       ]
   and termo env (t : T.injected) (rez : T.injected) =
     let wrap_binop ?(cstr = fun _ _ -> success) top bvop =

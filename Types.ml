@@ -1,4 +1,26 @@
-open OCanren
+module OCanren = struct
+  include OCanren
+
+  let logic =
+    {
+      logic with
+      GT.plugins =
+        object
+          method show = GT.show OCanren.logic
+
+          method fmt = GT.fmt OCanren.logic
+
+          method gmap = GT.gmap OCanren.logic
+
+          method foldl = GT.foldl OCanren.logic
+
+          method compare f a b =
+            match (a, b) with
+            | Var _, _ | _, Var _ -> GT.LT
+            | Value ax, Value bx -> f ax bx
+        end;
+    }
+end
 
 let flip f a b = f b a
 
@@ -83,6 +105,9 @@ module N = struct
 end
 
 exception HasFreeVars of string Lazy.t
+
+(* let hacky_compare_logic ~f a b =
+  match (a, b) with Var _, _ | _, Var _ -> GT.LT | Value a, Value b -> f a b *)
 
 module T = struct
   type op = Shl | Lshr | Land | Lor | Mul | Add | Sub
@@ -257,6 +282,20 @@ module T = struct
          | Value (Lshr (l, r)) -> T.lshr (helper l) (helper r) *)
     in
     helper root
+  (*
+  let my_compare : logic -> logic -> GT.comparison =
+    let rec helper (eta : logic) = hacky_compare_logic ~f:helper_nologic eta
+    and helper_nologic a b =
+      match (a, b) with
+      | Const n, Const m -> hacky_compare_logic ~f:(GT.compare N.ground) n m
+      | Var n, Var m -> hacky_compare_logic ~f:(GT.compare GT.string) n m
+      | Binop (op1, l1, r1), Binop (op2, l2, r2) ->
+          GT.chain_compare
+            (hacky_compare_logic (GT.compare op) op1 op2)
+            (fun () -> GT.chain_compare (helper l1 l2) (fun () -> helper r1 r2))
+    in
+    helper
+    *)
 end
 
 (*
@@ -301,25 +340,28 @@ module Ph = struct
     | Op of 'binop * 'term * 'term
   [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
-  open OCanren
+  (* open OCanren *)
 
-  module E = Fmap4 (struct
+  module E = OCanren.Fmap4 (struct
     type nonrec ('a, 'b, 'c, 'd) t = ('a, 'b, 'c, 'd) t
 
     let fmap eta = GT.gmap t eta
   end)
 
-  type ground = (ground, ground Std.List.ground, binop, T.ground) t
+  open OCanren
+
+  type ground = (ground, ground OCanren.Std.List.ground, binop, T.ground) t
   [@@deriving gt ~options:{ show; fmt; gmap }]
 
   type logic =
-    (logic, logic Std.List.logic, binop OCanren.logic, T.logic) t OCanren.logic
+    (logic, logic OCanren.Std.List.logic, binop OCanren.logic, T.logic) t
+    OCanren.logic
   [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
-  type nonrec injected = (ground, logic) injected
+  type nonrec injected = (ground, logic) OCanren.injected
 
   let rec reify env =
-    E.reify reify (Std.List.reify reify) OCanren.reify T.reify env
+    E.reify reify (OCanren.Std.List.reify reify) OCanren.reify T.reify env
 
   let true_ : injected = inj @@ E.distrib True
 
@@ -407,7 +449,7 @@ module Ph = struct
       | Value (Conj (Var _))
       | Value (Disj (Var _))
       | Var _ ->
-          raise (HasFreeVars (lazy ""))
+          raise (HasFreeVars (lazy "Var instead of formula"))
       | Value True -> P.true_
       | Value (Not l) -> P.not (helper l)
       | Value (Op (Value Eq, l, r)) -> P.eq (term l) (term r)
@@ -422,7 +464,7 @@ module Ph = struct
       | Value (Disj (Value (Std.List.Cons (h, tl)))) ->
           helper_list P.disj ~on_empty:(helper h) tl
     and helper_list ~on_empty op = function
-      | Var _ -> raise (HasFreeVars (lazy ""))
+      | Var _ -> raise (HasFreeVars (lazy "Var in a cons cell"))
       | Value (Std.List.Cons (e, tl)) ->
           op (helper e) (helper_list ~on_empty op tl)
       | Value Std.List.Nil -> on_empty
@@ -430,58 +472,56 @@ module Ph = struct
     helper
 
   let compare_le a b =
-    match (a, b) with
-    | Var _, _ | _, Var _ -> true
-    | _ -> (
-        match GT.compare logic a b with
-        | GT.GT ->
-            Format.printf "\t\tACHTUNG: `%s` > `%s`\n%!" (GT.show logic a)
-              (GT.show logic b);
-            false
-        | _ -> true)
-
-  let my_lessthan (a : logic) (b : logic) =
-    let rec helper : logic * _ -> _ = function
+    match GT.compare logic a b with
+    | GT.GT ->
+        Format.printf "\t\tACHTUNG: `%s` > `%s`\n%!" (GT.show logic a)
+          (GT.show logic b);
+        false
+    | _ -> true
+  (*
+  let my_lessthan a b =
+    let open GT in
+    let rec helper : logic -> _ -> _ =
+     fun h1 h2 ->
+      match (h1, h2) with
       | _, Var _ | Var _, _ -> GT.LT
       | Value av, Value bv -> helper_nologic (av, bv)
     and helper_nologic = function
-      (* True << Conj <<  Disj << Not << Op *)
       | True, True -> GT.EQ
-      | _, True -> GT.GT
-      | True, _ -> GT.LT
-      | Conj (Value Std.List.Nil), Conj (Value Std.List.Nil) -> GT.EQ
-      | Conj (Value Std.List.Nil), Conj (Value (Std.List.Cons (_, _))) -> GT.LT
-      | ( Conj (Value (Std.List.Cons (h1, _))),
-          Conj (Value (Std.List.Cons (h2, _))) )
-        when helper (h1, h2) = LT ->
-          GT.LT
-      | ( Conj (Value (Std.List.Cons (_, t1))),
-          Conj (Value (Std.List.Cons (_, t2))) ) ->
-          helper_nologic (Conj (Value t1), (Conj (Value t2)))
-      | Conj (Var _), Conj _ | Conj _, Conj (Var _) -> GT.LT
-      | Conj (Value (Std.List.Cons (_, _))), Conj (Value Std.List.Nil) -> GT.GT
-      | Conj _, _ -> GT.LT
-      | _, Conj _ -> GT.GT
-      | Disj _, _ | _, Disj _ -> failwith "not implemented"
-      | Not a, Not b -> helper (a, b)
-      | Not _, _ -> GT.LT
-      | _, Not _ -> GT.GT
+      | Conj xs, Conj ys -> helper_list xs ys
+      | Disj xs, Disj ys -> helper_list xs ys
+      | Not a, Not b -> helper a b
       | Op (op1, l1, r1), Op (op2, l2, r2) ->
           GT.chain_compare
             (helper_opl (op1, op2))
             (fun () ->
-              GT.chain_compare (helper (l1, l2)) (fun () -> helper (r1, r2)))
+              GT.chain_compare (T.my_compare l1 l2) (fun () ->
+                  T.my_compare r1 r2))
+      | x, y -> (
+          let tx, ty = Obj.(tag @@ repr x, tag @@ repr y) in
+          assert (tx <> ty);
+          match Stdlib.compare tx ty with 1 -> GT.GT | 0 -> GT.EQ | _ -> GT.LT)
+    and helper_list xs ys =
+      match (xs, ys) with
+      | Var _, _ | _, Var _ -> LT
+      | Value Std.List.Nil, Value Std.List.Nil -> GT.EQ
+      | Value (Std.List.Cons (h1, t1)), Value (Std.List.Cons (h2, t2)) ->
+          GT.chain_compare (helper h1 h2) (fun () -> helper_list t1 t2)
+      | Value Std.List.Nil, Value (Std.List.Cons (_, _)) -> GT.LT
+      | Value (Std.List.Cons (_, _)), Value Std.List.Nil -> GT.GT
     and helper_opl = function
       | Var _, _ | _, Var _ -> GT.LT
       | Value l, Value r ->
           GT.compare GT.int Obj.(tag @@ Obj.repr l) Obj.(tag @@ repr r)
     in
 
-    helper (a, b)
+    helper *)
 end
 
 (* TODO: Here environment containts terms but in practice it's likely that we will need only constants *)
 module Env = struct
+  open OCanren
+
   type ground = (string * T.ground) Std.List.ground
 
   type logic = (string OCanren.logic * T.logic) OCanren.logic Std.List.logic
@@ -530,6 +570,8 @@ end
 
 let mk_of_term (module BV : Bv.S) =
   let module Ans = struct
+    open OCanren
+
     type t = T.injected
 
     type rez = t
