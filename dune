@@ -11,9 +11,10 @@
  (modules Types EvalPh0 Algebra)
  (flags (-rectypes))
  (libraries OCanren OCanren.tester bv z3)
+ (inline_tests)
  (wrapped false)
  (preprocess
-  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl GT.syntax.compare )))
+  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl GT.syntax.compare ppx_inline_test)))
 
 (executable
  (name ph_test)
@@ -21,7 +22,7 @@
  (flags (-rectypes))
  (libraries impl)
  (preprocess
-  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl)))
+  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl )))
 
 
 

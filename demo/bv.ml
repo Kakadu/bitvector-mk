@@ -73,6 +73,11 @@ module Repr = struct
         end;
     }
 
+  let hack_compare ~f a b =
+    match (a, b) with
+    | Value ax, Value bx -> f ax bx
+    | Var _, _ | _, Var _ -> GT.EQ
+
   let l =
     {
       GT.gcata = ();
@@ -89,10 +94,27 @@ module Repr = struct
             GT.foldl Std.List.logic (GT.foldl OCanren.logic @@ GT.foldl GT.int)
 
           method compare =
-            GT.compare Std.List.logic
-              (GT.compare OCanren.logic @@ GT.compare GT.int)
+            let rec helper a b =
+              match (a, b) with
+              | Var _, _ | _, Var _ -> GT.EQ
+              | Value Std.List.Nil, Value (Std.List.Cons (_, _))
+              | Value (Std.List.Cons (_, _)), Value Std.List.Nil ->
+                  failwith "should not happen"
+              | Value Std.List.Nil, Value Nil -> GT.EQ
+              | Value (Std.List.Cons (h1, t1)), Value (Std.List.Cons (h2, t2))
+                ->
+                  GT.chain_compare (helper t1 t2) (fun () ->
+                      hack_compare ~f:(GT.compare GT.int) h1 h2)
+            in
+
+            helper
         end;
     }
+
+  let%test _ =
+    let three : l = Std.List.of_list Fun.id [0; 1; 0; 0] |> Std.List.inj (OCanren.to_logic) in
+    let one : l = Std.List.of_list Fun.id [1; 0; 0; 0] |> Std.List.inj (OCanren.to_logic) in
+    GT.compare l one three = GT.LT
 end
 
 module type S = sig

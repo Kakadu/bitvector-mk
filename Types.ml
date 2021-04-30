@@ -104,7 +104,9 @@ module N = struct
     T.const_s (string_of_int !acc)
 end
 
-exception HasFreeVars of string Lazy.t
+exception HasFreeVars of string
+
+let has_free_vars fmt = Format.kasprintf (fun s -> raise (HasFreeVars s)) fmt
 
 (* let hacky_compare_logic ~f a b =
   match (a, b) with Var _, _ | _, Var _ -> GT.LT | Value a, Value b -> f a b *)
@@ -115,7 +117,7 @@ module T = struct
 
   type ('self, 'op, 'int, 'varname) t =
     | Const of 'int
-    | Var of 'varname
+    | SubjVar of 'varname
     (* | Shl1 of 'self
        | Lshr1 of 'self *)
     | Binop of 'op * 'self * 'self
@@ -154,7 +156,7 @@ module T = struct
 
   let const (x : Bv.Repr.injected) : injected = inj @@ E.distrib @@ Const x
 
-  let var s : injected = inj @@ E.distrib @@ Var s
+  let var s : injected = inj @@ E.distrib @@ SubjVar s
 
   (* let shiftl1 a : injected = inj @@ E.distrib @@ Shl1 a
 
@@ -186,7 +188,7 @@ module T = struct
     in
     let rec helper = function
       | Const n -> const (Bv.Repr.inj n)
-      | Var s -> var !!s
+      | SubjVar s -> var !!s
       | Binop (op, l, r) -> of_op op (helper l) (helper r)
       (* | Shl1 l -> shiftl1 (helper l)
          | Lshr1 l -> lshiftr1 (helper l) *)
@@ -205,7 +207,7 @@ module T = struct
     in
     let rec helper ppf = function
       | Const n -> Format.fprintf ppf "%s" (Bv.Repr.show_binary n)
-      | Var s -> Format.pp_print_string ppf s
+      | SubjVar s -> Format.pp_print_string ppf s
       | Binop (op, l, r) ->
           Format.fprintf ppf "(%a %a %a)" pp_op op helper l helper r
       (* | Shl (l, r) -> Format.fprintf ppf "(bvshl %a %a)" helper l helper r
@@ -242,10 +244,8 @@ module T = struct
 
     let rec helper = function
       | Const n -> N.to_smt ctx n
-      | Var s -> T.var s
+      | SubjVar s -> T.var s
       | Binop (op, l, r) -> on_op op (helper l) (helper r)
-      (* | Shl (l, r) -> T.shl (helper l) (helper r)
-         | Lshr (l, r) -> T.lshr (helper l) (helper r) *)
     in
     helper
 
@@ -266,36 +266,78 @@ module T = struct
     in
     let rec helper : logic -> _ = function
       | Value (Binop (Var _, _, _)) ->
-          (* failwiths "logic inside %s %d: " __FILE__ __LINE__ *)
-          raise (HasFreeVars (lazy ""))
-      | Value (Var (OCanren.Var _)) ->
+          has_free_vars "logic inside %s %d (`%s`): " __FILE__ __LINE__
+            (GT.show logic root)
+      | Value (SubjVar (OCanren.Var _)) ->
           (* failwiths "logic inside %s %d" __FILE__ __LINE__ *)
-          raise (HasFreeVars (lazy ""))
+          has_free_vars ""
       | Var _ ->
           (* failwiths "logic inside %s %d: `%s`" __FILE__ __LINE__
              (GT.show logic root); *)
-          raise (HasFreeVars (lazy ""))
+          has_free_vars ""
       | Value (Const n) -> N.to_smt_logic_exn ctx n
-      | Value (Var (OCanren.Value s)) -> T.var s
+      | Value (SubjVar (OCanren.Value s)) -> T.var s
       | Value (Binop (Value op, l, r)) -> on_op op (helper l) (helper r)
-      (* | Value (Shl (l, r)) -> T.shl (helper l) (helper r)
-         | Value (Lshr (l, r)) -> T.lshr (helper l) (helper r) *)
     in
+
     helper root
-  (*
-  let my_compare : logic -> logic -> GT.comparison =
-    let rec helper (eta : logic) = hacky_compare_logic ~f:helper_nologic eta
-    and helper_nologic a b =
-      match (a, b) with
-      | Const n, Const m -> hacky_compare_logic ~f:(GT.compare N.ground) n m
-      | Var n, Var m -> hacky_compare_logic ~f:(GT.compare GT.string) n m
-      | Binop (op1, l1, r1), Binop (op2, l2, r2) ->
-          GT.chain_compare
-            (hacky_compare_logic (GT.compare op) op1 op2)
-            (fun () -> GT.chain_compare (helper l1 l2) (fun () -> helper r1 r2))
+
+  let my_structural a b =
+    OCanren.structural (Std.Pair.pair a b) (Std.Pair.reify reify reify)
+      (function
+      | Var _ -> assert false
+      | Value (a, b) -> (
+          match GT.compare logic a b with
+          | LT ->
+              (* Format.printf "%d\n%!" __LINE__; *)
+              true
+          | EQ ->
+              (* Format.printf "%d\n%!" __LINE__; *)
+              false
+          | GT ->
+              (* Format.printf "%d\n%!" __LINE__; *)
+              false))
+
+  let check_run_once goal =
+    let stream =
+      OCanren.(run q) goal (fun ss -> ss#reify OCanren.reify)
     in
-    helper
-    *)
+    let len = List.length (Stream.take stream) in
+    (* Format.printf "stream.length = %d\n%!" len; *)
+    1 = len
+
+  let%test _ =
+    let (module BV) = Bv.create 4 in
+    let a = shl (var !!"b") (const @@ BV.build_num 1) in
+    let b = shl (var !!"b") (const @@ BV.build_num 2) in
+    let c = shl (var !!"b") (const @@ BV.build_num 3) in
+
+    check_run_once (fun v ->
+        fresh ()
+          (v === !!"success")
+          (my_structural a b)
+          (my_structural b c)
+          (my_structural a c))
+
+  let%test _ =
+    let (module BV) = Bv.create 4 in
+    let vx = var !!"x" in
+    let vy = var !!"y" in
+    let c = (const @@ BV.build_num 3) in
+    let ab = add vx vy in
+
+
+    check_run_once (fun v ->
+        fresh ()
+          (v === !!"success")
+          (my_structural vx vy)
+          (* const is less then variable *)
+          (my_structural c vx)
+          (my_structural vx ab)
+          (* (my_structural (Std.Pair.pair a c)) *)
+          )
+
+
 end
 
 (*
@@ -445,26 +487,29 @@ module Ph = struct
     let _, (module P) = Algebra.to_z3 ctx in
 
     let rec helper : logic -> _ = function
-      | Value (Op (Var _, _, _))
-      | Value (Conj (Var _))
-      | Value (Disj (Var _))
-      | Var _ ->
-          raise (HasFreeVars (lazy "Var instead of formula"))
+      | Value (Op (Var _, _, _)) ->
+          has_free_vars "Var instead of formula %d" __LINE__
+      | Value (Conj (Var _)) ->
+          has_free_vars "Var instead of formula %d" __LINE__
+      | Value (Disj (Var _)) ->
+          has_free_vars "Var instead of formula %d" __LINE__
+      | Var (vidx, _) -> has_free_vars "Var instead of formula %d" __LINE__
       | Value True -> P.true_
       | Value (Not l) -> P.not (helper l)
       | Value (Op (Value Eq, l, r)) -> P.eq (term l) (term r)
       | Value (Op (Value Le, l, r)) -> P.le (term l) (term r)
       | Value (Op (Value Lt, l, r)) -> P.lt (term l) (term r)
       | Value (Conj (Value Std.List.Nil)) ->
-          raise (HasFreeVars (lazy "We should not get empty conjunctions"))
+          has_free_vars "We should not get empty conjunctions %d" __LINE__
       | Value (Conj (Value (Std.List.Cons (h, tl)))) ->
           helper_list P.conj ~on_empty:(helper h) tl
       | Value (Disj (Value Std.List.Nil)) ->
-          raise (HasFreeVars (lazy "We should not get empty disjunctions"))
+          has_free_vars "We should not get empty disjunctions %d" __LINE__
       | Value (Disj (Value (Std.List.Cons (h, tl)))) ->
           helper_list P.disj ~on_empty:(helper h) tl
     and helper_list ~on_empty op = function
-      | Var _ -> raise (HasFreeVars (lazy "Var in a cons cell"))
+      | Var _ -> has_free_vars "Var in a cons cell %d" __LINE__
+      | Value (Std.List.Cons (Var _, tl)) -> helper_list ~on_empty op tl
       | Value (Std.List.Cons (e, tl)) ->
           op (helper e) (helper_list ~on_empty op tl)
       | Value Std.List.Nil -> on_empty

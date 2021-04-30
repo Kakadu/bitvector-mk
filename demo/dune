@@ -10,8 +10,9 @@
  (flags (-rectypes))
  (libraries OCanren OCanren.tester)
  ;(instrumentation (backend bisect_ppx))
+ (inline_tests)
  (preprocess
-  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show ppx_optcomp)))
+  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show ppx_optcomp ppx_inline_test)))
 
 (executable
  (name bv_demo)

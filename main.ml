@@ -325,17 +325,16 @@ let test (evalo : (module Bv.S) -> _) m =
                 myenqueue model;
                 failure
           with HasFreeVars s ->
-            Format.eprintf "Got a phormula with free variables: `%s`\n%!"
-              (Lazy.force s);
+            Format.eprintf "Got a phormula with free variables: `%s`\n%!" s;
             failure)
     in
     fresh
       (ph0 ph1 ph2 ph3 a b l0 l1 l2 l3)
       (a === Types.(T.var !!"a"))
       (b === Types.(T.var !!"b"))
-      (* (ph0 === Types.Ph.le b a) *)
-      (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a)
-      (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a)
+      (ph0 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a)
+      (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a)
+      (ph2 === Types.Ph.le b a)
       (* (ph3 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a) *)
       (* (ph3 === Types.Ph.le (Types.T.shl b l3) a) *)
       (ans_var === EvalPh0.(Ph.(not (conj_list [ ph0; ph1; ph2; ph3 ]))))
