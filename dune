@@ -1,8 +1,7 @@
 (env
  (dev
   (flags
-   (:standard -strict-sequence -short-paths -strict-formats -short-paths -keep-locs -w
-     -3-9-32))))
+   (:standard -warn-error +5-33-27 -w -3-9-27-26-32))))
 
 
 
@@ -29,7 +28,7 @@
 (executable
  (name main)
  (modules main)
- (flags (-rectypes))
+ (flags (:standard -rectypes))
  (libraries OCanren z3 res impl bv mytester)
  (preprocess
   (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl)))

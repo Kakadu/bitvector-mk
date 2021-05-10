@@ -176,7 +176,7 @@ module T = struct
 
   let lshr a b = inj @@ E.distrib @@ Binop (!!Lshr, a, b)
 
-  let inj =
+  let inj : ground -> injected =
     let of_op = function
       | Add -> add
       | Sub -> sub
@@ -269,12 +269,10 @@ module T = struct
           has_free_vars "logic inside %s %d (`%s`): " __FILE__ __LINE__
             (GT.show logic root)
       | Value (SubjVar (OCanren.Var _)) ->
-          (* failwiths "logic inside %s %d" __FILE__ __LINE__ *)
-          has_free_vars ""
+          has_free_vars "logic inside %s %d" __FILE__ __LINE__
       | Var _ ->
-          (* failwiths "logic inside %s %d: `%s`" __FILE__ __LINE__
-             (GT.show logic root); *)
-          has_free_vars ""
+          has_free_vars "logic inside %s %d: `%s`" __FILE__ __LINE__
+            (GT.show logic root)
       | Value (Const n) -> N.to_smt_logic_exn ctx n
       | Value (SubjVar (OCanren.Value s)) -> T.var s
       | Value (Binop (Value op, l, r)) -> on_op op (helper l) (helper r)
@@ -282,7 +280,7 @@ module T = struct
 
     helper root
 
-  let my_structural a b =
+  let ( <= ) a b =
     OCanren.structural (Std.Pair.pair a b) (Std.Pair.reify reify reify)
       (function
       | Var _ -> assert false
@@ -299,9 +297,7 @@ module T = struct
               false))
 
   let check_run_once goal =
-    let stream =
-      OCanren.(run q) goal (fun ss -> ss#reify OCanren.reify)
-    in
+    let stream = OCanren.(run q) goal (fun ss -> ss#reify OCanren.reify) in
     let len = List.length (Stream.take stream) in
     (* Format.printf "stream.length = %d\n%!" len; *)
     1 = len
@@ -313,31 +309,22 @@ module T = struct
     let c = shl (var !!"b") (const @@ BV.build_num 3) in
 
     check_run_once (fun v ->
-        fresh ()
-          (v === !!"success")
-          (my_structural a b)
-          (my_structural b c)
-          (my_structural a c))
+        fresh () (v === !!"success") (a <= b) (b <= c) (a <= c))
 
   let%test _ =
     let (module BV) = Bv.create 4 in
     let vx = var !!"x" in
     let vy = var !!"y" in
-    let c = (const @@ BV.build_num 3) in
+    let c = const @@ BV.build_num 3 in
     let ab = add vx vy in
 
-
     check_run_once (fun v ->
-        fresh ()
-          (v === !!"success")
-          (my_structural vx vy)
+        fresh () (v === !!"success") (vx <= vy)
           (* const is less then variable *)
-          (my_structural c vx)
-          (my_structural vx ab)
-          (* (my_structural (Std.Pair.pair a c)) *)
-          )
-
-
+          (c <= vx)
+          (vx <= ab)
+          (c <= shl vx c)
+        (* (my_structural (Std.Pair.pair a c)) *))
 end
 
 (*
@@ -402,7 +389,7 @@ module Ph = struct
 
   type nonrec injected = (ground, logic) OCanren.injected
 
-  let rec reify env =
+  let rec reify env : injected -> logic =
     E.reify reify (OCanren.Std.List.reify reify) OCanren.reify T.reify env
 
   let true_ : injected = inj @@ E.distrib True
@@ -523,6 +510,16 @@ module Ph = struct
           (GT.show logic b);
         false
     | _ -> true
+
+  let compare_injected a b =
+    OCanren.(run q)
+      (fun _ ->
+        OCanren.structural (Std.Pair.pair a b) (Std.Pair.reify reify reify)
+            (function Value ((a : logic), b) ->
+            (match GT.compare logic a b with GT.LT -> true | _ -> false)))
+      (fun rr -> rr#reify OCanren.reify)
+    |> fun s -> if Stream.is_empty s then GT.GT else GT.LT
+
   (*
   let my_lessthan a b =
     let open GT in
@@ -667,9 +664,17 @@ let mk_of_formula =
     let not f = Final (Ph.not (finish f))
 
     let conj x y =
+      let sort xs ys =
+        List.append xs ys
+        |> List.sort (fun a b ->
+               match Ph.compare_injected a b with
+               | GT.LT -> -1
+               | GT.EQ -> 0
+               | GT.GT -> 1)
+      in
       match (x, y) with
-      | Conjs xs, Conjs ys -> Conjs (List.append xs ys)
-      | Final x, Conjs xs | Conjs xs, Final x -> Conjs (x :: xs)
+      | Conjs xs, Conjs ys -> Conjs (sort xs ys)
+      | Final x, Conjs xs | Conjs xs, Final x -> Conjs (sort [ x ] xs)
       | _, _ -> Final (Ph.conj2 (finish x) (finish y))
 
     let disj x y =

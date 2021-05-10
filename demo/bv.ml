@@ -112,8 +112,12 @@ module Repr = struct
     }
 
   let%test _ =
-    let three : l = Std.List.of_list Fun.id [0; 1; 0; 0] |> Std.List.inj (OCanren.to_logic) in
-    let one : l = Std.List.of_list Fun.id [1; 0; 0; 0] |> Std.List.inj (OCanren.to_logic) in
+    let three : l =
+      Std.List.of_list Fun.id [ 0; 1; 0; 0 ] |> Std.List.inj OCanren.to_logic
+    in
+    let one : l =
+      Std.List.of_list Fun.id [ 1; 0; 0; 0 ] |> Std.List.inj OCanren.to_logic
+    in
     GT.compare l one three = GT.LT
 end
 
@@ -179,15 +183,6 @@ let create width : (module S) =
   let module M = struct
     open OCanren
     include Repr
-    (* type e = int
-
-       type g = e Std.List.ground
-
-       type l = e logic Std.List.logic
-
-       type n = (e, e logic) OCanren.Std.List.groundi
-
-       type injected = n *)
 
     let width = width
 
@@ -936,12 +931,8 @@ let create width : (module S) =
     let shiftlo op len rez =
       conde
         [
-          (* trace_int !!__LINE__ "  __LINE__"
-             &&& *)
-          lto len (build_num width)
-          (* &&& trace_int !!__LINE__ "  __LINE__" *)
-          &&& while_ ~from:len op shiftl1 rez;
-          (* geo len (build_num width) &&& (rez === zero); *)
+          lto len (build_num width) &&& while_ ~from:len op shiftl1 rez;
+          geo len (build_num width) &&& (rez === zero);
         ]
 
     let forallo q relo =

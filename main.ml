@@ -47,11 +47,11 @@ let rec inhabito term r =
 module MyQueue : sig
   type t
 
-  val enqueue : t -> Env.ground -> unit
+  val enqueue : t -> Env.ground -> bool -> unit
 
   val create : unit -> t
 
-  val get : t -> int -> Env.ground * Env.injected
+  val get : t -> int -> Env.ground * Env.injected * bool
 
   val size : t -> int
 
@@ -60,7 +60,7 @@ end = struct
   module Arr = Res.Array
 
   (* WE should save models and evaluations of the original formula in them *)
-  type t = { arr : (Env.ground * Env.injected) Arr.t; count : int ref }
+  type t = { arr : (Env.ground * Env.injected * bool) Arr.t; count : int ref }
 
   (* [%%define CHECK_DUPLICATES] *)
 
@@ -68,14 +68,14 @@ end = struct
 
   exception Duplicate
 
-  let enqueue : t -> Env.ground -> unit =
-   fun ({ arr } as q) ex ->
+  let enqueue : t -> Env.ground -> _ -> unit =
+   fun ({ arr } as q) ex v ->
     try
-      Arr.iter (fun (el, _) -> if el = ex then raise Duplicate) arr;
+      Arr.iter (fun (el, _, _) -> if el = ex then raise Duplicate) arr;
 
       (* Doc doesn't say explicitly but
          it seems that it is adding new element to the end *)
-      Arr.add_one arr (ex, Env.inject ex)
+      Arr.add_one arr (ex, Env.inject ex, v)
     with Duplicate -> incr q.count
 
   let create () : t = { arr = Arr.empty (); count = ref 0 }
@@ -112,10 +112,10 @@ let trace_intermediate_candidate =
 
 let trace_new_example =
   match Sys.getenv "MKTRACE" with
-  | exception Not_found -> fun _ _ -> ()
+  | exception Not_found -> fun _ _ _ -> ()
   | _ ->
-      fun env sz ->
-        Format.printf "next model is = '%s'\n%!" (Env.show env);
+      fun env sz v ->
+        Format.printf "next model is = '%s' with value %b\n%!" (Env.show env) v;
         Format.printf "Examples count  = %d\n%!" sz
 
 [%%else]
@@ -124,7 +124,7 @@ let trace_on_success _ = ()
 
 let trace_intermediate_candidate _ = ()
 
-let trace_new_example _ _ = ()
+let trace_new_example _ _ _ = ()
 
 [%%endif]
 
@@ -203,6 +203,20 @@ let test (evalo : (module Bv.S) -> _) m =
     ()
   in
 
+  let apply_model ph ~model =
+    match Z3.Model.eval model ph true with
+    | None -> failwith "should not happen"
+    | Some e when not (Z3.Expr.is_const e) -> (
+        match run_solver e with
+        | Z3.Solver.UNKNOWN ->
+            failwith "Solver should not return UNKNOWN result"
+        | UNSATISFIABLE -> false
+        | SATISFIABLE -> true)
+    | Some e ->
+        printf "Model evaluation result is : %s\n%!" (Z3.Expr.to_string e);
+        failwith "not implemented"
+  in
+
   let ex_storage, myenqueue =
     let _eval m =
       match Z3.Model.eval m Z3Encoded.ph false with
@@ -214,7 +228,7 @@ let test (evalo : (module Bv.S) -> _) m =
     in
 
     let q = MyQueue.create () in
-    let myenqueue model =
+    let myenqueue model b =
       let env =
         Algebra.SS.fold
           (fun name acc ->
@@ -230,9 +244,9 @@ let test (evalo : (module Bv.S) -> _) m =
           free Std.List.Nil
       in
 
-      trace_new_example env (1 + MyQueue.size q);
+      trace_new_example env (1 + MyQueue.size q) b;
 
-      MyQueue.enqueue q env
+      MyQueue.enqueue q env b
     in
 
     (* let's create a 1st example by querying any model *)
@@ -242,7 +256,7 @@ let test (evalo : (module Bv.S) -> _) m =
       | UNSATISFIABLE -> failwith "Initial formula is unsat"
       | SATISFIABLE ->
           let model = Z3.Solver.get_model solver |> Option.get in
-          myenqueue model
+          myenqueue model (apply_model Z3Encoded.ph ~model)
     in
     (q, myenqueue)
   in
@@ -255,12 +269,15 @@ let test (evalo : (module Bv.S) -> _) m =
     let loop () =
       let rec helper i =
         if i >= MyQueue.size ex_storage then
-          (* let () = Format.printf "i is >= %d\n%!" (MyQueue.size ex_storage) in *)
+          let () = Format.printf "i is >= %d\n%!" (MyQueue.size ex_storage) in
           success
         else
-          let _g, env0 = MyQueue.get ex_storage i in
+          let _g, env0, is_true = MyQueue.get ex_storage i in
           (* Format.printf "Testing example: '%a'\n%!" EvalPh.Env.pp _g; *)
-          evalo (module BV) env0 ans_var &&& helper (1 + i)
+          evalo (module BV) env0 ans_var !!is_true
+          &&& EvalPh0.trace_bool !!is_true "evalo said"
+          &&& EvalPh0.trace_ph ans_var "current answer:"
+          &&& helper (1 + i)
       in
       helper 0
     in
@@ -322,14 +339,14 @@ let test (evalo : (module Bv.S) -> _) m =
                 success
             | SATISFIABLE ->
                 let model = Z3.Solver.get_model solver |> Option.get in
-                myenqueue model;
+                myenqueue model (apply_model ~model Z3Encoded.ph);
                 failure
           with HasFreeVars s ->
             Format.eprintf "Got a phormula with free variables: `%s`\n%!" s;
             failure)
     in
     fresh
-      (ph0 ph1 ph2 ph3 a b l0 l1 l2 l3)
+      (ph0 ph1 ph2 ph3 a b l0 l1 l2 l3 ans_var2)
       (a === Types.(T.var !!"a"))
       (b === Types.(T.var !!"b"))
       (ph0 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a)
@@ -337,14 +354,15 @@ let test (evalo : (module Bv.S) -> _) m =
       (ph2 === Types.Ph.le b a)
       (* (ph3 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a) *)
       (* (ph3 === Types.Ph.le (Types.T.shl b l3) a) *)
-      (ans_var === EvalPh0.(Ph.(not (conj_list [ ph0; ph1; ph2; ph3 ]))))
-      (loop ())
+      (ans_var2 === Ph.(not (conj_list [ ph0; ph1; ph2; ph3 ])))
+      (loop ()) (ans_var === ans_var2)
       (* TODO: removing constraint below leads to more examples
          FIX: do not add duplicate examples.
       *)
       (* (enough_variables ans_var) *)
       (cutter ans_var)
+      (EvalPh0.trace_int !!1 "cutter succeeded")
   in
   runR Ph.reify on_ground on_logic (Options.max options) q qh ("", goal)
 
-let () = test EvalPh0.evalo Algebra.ex4
+let () = test EvalPh0.evalo_helper Algebra.ex4

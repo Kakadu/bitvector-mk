@@ -348,7 +348,8 @@ let ex4 =
 
     let info = "example4 about logarithm"
 
-    let ph = P.(exists "x" T.(lt (var "a") (shl (var "b") (var "x"))))
+    (* exists x *)
+    let ph = P.(exists "x" T.(var "a" < shl (var "b") (var "x")))
 
     let answer =
       let open P in

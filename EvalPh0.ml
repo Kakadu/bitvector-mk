@@ -13,6 +13,32 @@ let trace_my show n fmt =
 
 let trace_n n fmt = trace_my Bv.Repr.show_logic n fmt
 
+let trace_bool n fmt =
+  debug_var n (flip OCanren.reify) (function
+    | [ b ] ->
+        Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+          (GT.show logic (GT.show GT.bool) b);
+        success
+    | _ -> assert false)
+
+let trace_ph n fmt =
+  debug_var n (flip Ph.reify) (function
+    | [ f ] ->
+        Format.printf "%s: %s\n%!" (Format.asprintf fmt) (GT.show Ph.logic f);
+        success
+    | _ -> assert false)
+
+let trace_ph_list n fmt =
+  debug_var n
+    (flip (Std.List.reify Ph.reify))
+    (function
+      | [] -> success
+      | [ f ] ->
+          Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+            (GT.show Std.List.logic (GT.show Ph.logic) f);
+          success
+      | _ -> assert false)
+
 let trace_cmp n fmt =
   (* trace_my
      (GT.show Std.List.logic (GT.show OCanren.logic (GT.show Bv.cmp_t)))
@@ -70,7 +96,8 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
         &&& match op with `Conj -> success | `Disj -> failure);
         fresh (h tl arez)
           (phs === Std.(h % tl))
-          (h =/= prev) (cut_bad_syntax op h)
+          (h =/= prev)
+          (* (cut_bad_syntax op h) *)
           (* (OCanren.structural (Std.pair prev h)
               (Std.Pair.reify Ph.reify Ph.reify) (function
              | Var _ -> failwiths "should not happen"
@@ -105,13 +132,17 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
         fresh () (ph === Ph.conj (Std.nil ())) failure;
         fresh (a b h tl arez)
           (ph === Ph.conj Std.(h % tl))
-          (* (trace_int !!__LINE__ "before cut_bad_syntax") *)
           (cut_bad_syntax `Conj h)
-          (* (trace_int !!__LINE__ "after cut_bad_syntax") *)
+          (* (trace_ph_list Std.(h % tl) "conjuncts") *)
+          (* (trace_int !!__LINE__ "call evalo on 1st conjunct") *)
+          (* (trace_ph h "head = ")  *)
           (evalo env h arez)
+          (* (trace_bool arez "1st conjunct done") *)
           (conde
              [
-               arez === !!true &&& evalo_list `Conj h env tl is_tauto;
+               arez === !!true
+               (* &&& trace_int !!__LINE__ "call evalo_list" *)
+               &&& evalo_list `Conj h env tl is_tauto;
                arez === !!false &&& (is_tauto === !!false);
              ]);
         fresh (prev rez)
@@ -139,12 +170,13 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
         fresh () (t === rez)
           (conde
              (List.map (fun n -> t === T.const (BV.build_num n)) [ 1; 2; 3 ]));
-        wrap_binop T.shl BV.shiftlo ~cstr:(fun a b ->
+        wrap_binop T.shl BV.shiftlo
+        (* ~cstr:(fun a b ->
             structural (Std.pair a b) (Std.Pair.reify T.reify T.reify) (function
               | Value (Value (T.Const _), Value (T.Const _)) -> false
-              | _ -> true));
+              | _ -> true)) *);
       ]
   in
   evalo
 
-let evalo bv env ph = evalo_helper bv env ph !!true
+let evalo bv env ph = (* evalo_helper *) bv env ph !!true
