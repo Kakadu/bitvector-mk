@@ -25,15 +25,7 @@ let trace_ph : Types.Ph.injected -> _ -> _ =
  fun n fmt ->
   debug_var n (flip Ph.reify) (function
     | [ f ] ->
-        let () =
-          try
-            let ph = Ph.ground_of_logic_exn f in
-            Format.printf "%s: %s\n%!" (Format.asprintf fmt)
-              (GT.show Ph.ground ph)
-          with HasFreeVars _ ->
-            Format.printf "%s: %s\n%!" (Format.asprintf fmt)
-              (GT.show Ph.logic f)
-        in
+        Format.printf "%s: %a\n%!" (Format.asprintf fmt) Ph.PPNew.my_logic_pp f;
         success
     | _ -> assert false)
 
@@ -187,5 +179,3 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
       ]
   in
   evalo
-
-let evalo bv env ph = (* evalo_helper *) bv env ph !!true

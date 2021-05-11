@@ -276,7 +276,7 @@ let test (evalo : (module Bv.S) -> _) m =
           (* Format.printf "Testing example: '%a'\n%!" EvalPh.Env.pp _g; *)
           evalo (module BV) env0 ans_var !!is_true
           &&& EvalPh0.trace_bool !!is_true "evalo said"
-          &&& EvalPh0.trace_ph ans_var "current answer:"
+          (* &&& EvalPh0.trace_ph ans_var "\t\tcurrent answer:" *)
           &&& helper (1 + i)
       in
       helper 0
@@ -346,20 +346,24 @@ let test (evalo : (module Bv.S) -> _) m =
             failure)
     in
     fresh
-      (ph0 ph1 ph2 ph3 a b l0 l1 l2 l3 ans_var2)
+      (ph0 ph1 ph2 ph3 a b l0 r0 l1 r1 l2 r2 ans_var2 o3 l3 r3)
       (a === Types.(T.var !!"a"))
       (b === Types.(T.var !!"b"))
       (* (ph0 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a) *)
       (* (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a) *)
-      (* (ph2 === Types.Ph.le b a) *)
-      (* (ph3 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a) *)
-      (* (ph3 === Types.Ph.le (Types.T.shl b l3) a) *)
+      (* (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a) *)
+      (ph3 === Types.Ph.le b a)
+      (ph0 === Types.Ph.op !!Types.Ph.Le l0 r0)
+      (ph1 === Types.Ph.op !!Types.Ph.Le l1 r1)
+      (ph2 === Types.Ph.op !!Types.Ph.Le l2 r2)
+      (ph3 === Types.Ph.op !!Types.Ph.Le l3 r3)
       (ans_var === Ph.(not (conj_list [ ph0; ph1; ph2; ph3 ])))
       (loop ()) (ans_var === ans_var2)
       (* TODO: removing constraint below leads to more examples
          FIX: do not add duplicate examples.
       *)
       (* (enough_variables ans_var) *)
+      (EvalPh0.trace_int !!1 "running cutter")
       (cutter ans_var)
       (EvalPh0.trace_int !!1 "cutter succeeded")
   in

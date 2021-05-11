@@ -193,17 +193,16 @@ module T = struct
       | Shl -> Format.fprintf ppf "bvshl"
       | Lshr -> Format.fprintf ppf "bvlshr"
 
-    let my_pp_name fmt _ = assert false
+    let my_pp_name ppf = Format.fprintf ppf "%s"
 
     let rec my_ground_pp ppf : ground -> unit =
       pp_algebra my_ground_pp my_pp_op
-        (fun fmt _ -> Format.fprintf fmt "SHIT")
+        (fun ppf s -> Format.fprintf ppf "%s" (Bv.Repr.show_binary s))
         my_pp_name ppf
 
     let rec my_logic_pp ppf : logic -> unit =
       hack
-        (pp_algebra my_logic_pp (hack my_pp_op)
-           (fun fmt _ -> Format.fprintf fmt "SHIT")
+        (pp_algebra my_logic_pp (hack my_pp_op) Bv.Repr.pp_logic_binary
            (hack my_pp_name))
         ppf
   end
@@ -386,15 +385,9 @@ module T = struct
       | Var _ -> assert false
       | Value (a, b) -> (
           match GT.compare logic a b with
-          | LT ->
-              (* Format.printf "%d\n%!" __LINE__; *)
-              true
-          | EQ ->
-              (* Format.printf "%d\n%!" __LINE__; *)
-              false
-          | GT ->
-              (* Format.printf "%d\n%!" __LINE__; *)
-              false))
+          | LT -> true
+          | EQ -> false
+          | GT -> false))
 
   let check_run_once goal =
     let stream = OCanren.(run q) goal (fun ss -> ss#reify OCanren.reify) in
@@ -498,6 +491,8 @@ module Ph = struct
 
   let le a b = inj @@ E.distrib @@ Op (!!Le, a, b)
 
+  let op o a b = inj @@ E.distrib @@ Op (o, a, b)
+
   let conj2 a (b : injected) = inj @@ E.distrib @@ Conj Std.(a % (b % nil ()))
 
   let conj_list xs : injected = inj @@ E.distrib @@ Conj (Std.list Fun.id xs)
@@ -514,13 +509,80 @@ module Ph = struct
 
   module PPNew = struct
     let pp_algebra pp_self pp_list pp_binop pp_term =
-      GT.transform t (fun fself ->
+      GT.transform t (fun _ ->
           object
             inherit
-              [_, _, _, _, _] fmt_t_t pp_self pp_list pp_binop pp_term fself
+              [_, _, _, _, _] fmt_t_t
+                pp_self pp_list pp_binop pp_term
+                (fun _ _ -> failwith "should not be called")
+
+            method c_Not ppf _ f = Format.fprintf ppf "(not %a)" pp_self f
+
+            method c_True ppf _ = Format.fprintf ppf "T"
+
+            method c_Conj ppf _ xs = Format.fprintf ppf "(and %a)" pp_list xs
+
+            method c_Disj ppf _ xs = Format.fprintf ppf "(or %a)" pp_list xs
+
+            method c_Op ppf _ op l r =
+              Format.fprintf ppf "(%a %a %a)" pp_binop op pp_term l pp_term r
           end)
 
-    let my_pp_list fa ppf _ = assert false
+    let my_pp_list fa ppf lst =
+      let is_ground_style =
+        let rec onlogic () =
+          GT.transform OCanren.logic
+            (fun _ ->
+              object
+                inherit [_, _, _, _, _, _] OCanren.logic_t
+
+                method c_Var _ _ _ _ = false
+
+                method c_Value _ _ tl = on_slice () tl
+              end)
+            ()
+        and on_slice () =
+          GT.transform OCanren.Std.List.t
+            (fun fself ->
+              object
+                inherit [_, _, _, _, _, _, _, _, _] OCanren.Std.List.t_t
+
+                method c_Nil () _ = true
+
+                method c_Cons () _ _h tl = onlogic () tl
+                (* match tl with Var _ -> false | Value xs -> fself () xs *)
+              end)
+            ()
+        in
+        onlogic () lst
+      in
+      let rec pp_style_ground ppf xs =
+        T.PPNew.hack
+          (GT.transform OCanren.Std.List.t (fun fself ->
+               object
+                 inherit [_, _, _, _, _, _, _, _, _] OCanren.Std.List.t_t
+
+                 method c_Nil _ _ = ()
+
+                 method c_Cons ppf _ h tl =
+                   Format.fprintf ppf "%a %a" fa h pp_style_ground tl
+               end))
+          ppf xs
+      in
+      let rec pp_style_logic ppf xs =
+        T.PPNew.hack
+          (GT.transform OCanren.Std.List.t (fun fself ->
+               object
+                 inherit [_, _, _, _, _, _, _, _, _] OCanren.Std.List.t_t
+
+                 method c_Nil _ _ = ()
+
+                 method c_Cons ppf _ h tl =
+                   Format.fprintf ppf "%a :: %a" fa h pp_style_logic tl
+               end))
+          ppf xs
+      in
+      (if is_ground_style then pp_style_ground else pp_style_logic) ppf lst
 
     let my_pp_binop ppf = function
       | Eq -> Format.fprintf ppf "="
@@ -528,13 +590,14 @@ module Ph = struct
       | Le -> Format.fprintf ppf "<="
 
     let rec my_ground_pp ppf : ground -> unit =
-      pp_algebra my_ground_pp (my_pp_list my_ground_pp) my_pp_binop
-        T.PPNew.my_ground_pp ppf
+      pp_algebra my_ground_pp
+        (GT.fmt OCanren.Std.List.ground my_ground_pp)
+        my_pp_binop T.PPNew.my_ground_pp ppf
 
     let rec my_logic_pp ppf : logic -> unit =
       T.PPNew.hack
         (pp_algebra my_logic_pp
-           (T.PPNew.hack @@ my_pp_list my_ground_pp)
+           (my_pp_list @@ my_logic_pp)
            (T.PPNew.hack my_pp_binop) T.PPNew.my_logic_pp)
         ppf
   end

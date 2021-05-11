@@ -47,6 +47,10 @@ module Repr : sig
   val show_binary : g -> string
 
   val show_logic : l -> string
+
+  val pp_binary : Format.formatter -> g -> unit
+
+  val pp_logic_binary : Format.formatter -> l -> unit
 end
 
 module type S = sig

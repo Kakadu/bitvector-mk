@@ -1,7 +1,7 @@
 open Printf
+open Tester
 open OCanren
 open OCanren.Std
-open Tester
 
 [%%define TRACE]
 
@@ -14,16 +14,16 @@ let int_pow base width = int_of_float (float_of_int base ** float_of_int width)
 module Repr = struct
   type e = int
 
-  type g = e Std.List.ground
+  type g = e OCanren.Std.List.ground
 
-  type l = e logic Std.List.logic
+  type l = e logic OCanren.Std.List.logic
 
   (* It seems we can't hide these types because
      unifucation with a variable requires l to be seen
      as _ logic in the second type parameter
   *)
 
-  type n = (g, l) injected
+  type n = (g, l) OCanren.injected
 
   type injected = n
 
@@ -37,18 +37,59 @@ module Repr = struct
       (fun _ _ -> failwith "should not happen")
       env
 
+  let ground_of_logic_exn : l -> g =
+    let rec on_logic l =
+      GT.transform OCanren.logic
+        (fun _ ->
+          object
+            method c_Value () _ x = on_list x
+
+            method c_Var () _ _ = failwith "free variables"
+          end)
+        () l
+    and on_list lst =
+      GT.transform OCanren.Std.List.t
+        (fun _ ->
+          object
+            method c_Nil () _ = OCanren.Std.List.Nil
+
+            method c_Cons () _ h tl = OCanren.Std.List.Cons (on_e h, on_logic tl)
+          end)
+        () lst
+    and on_e e =
+      GT.transform OCanren.logic
+        (fun _ ->
+          object
+            method c_Value () _ x = x
+
+            method c_Var () _ _ = failwith "free variables"
+          end)
+        () e
+    in
+    on_logic
+
   let show xs = GT.(show List.ground @@ show int) xs
 
-  let show_logic = GT.(show List.logic @@ show logic @@ show int)
+  let pp_logic = GT.(fmt List.logic @@ fmt logic @@ fmt int)
 
-  let show_binary (xs : g) =
-    let b = Buffer.create 10 in
-    Buffer.add_string b "0b";
-    let add = Buffer.add_char b in
+  let show_logic = Format.asprintf "%a" pp_logic
+
+  let pp_binary ppf (xs : g) =
+    Format.fprintf ppf "0b";
+    let add = Format.fprintf ppf "%c" in
     GT.foldr Std.List.ground
       (fun () -> function 0 -> add '0' | 1 -> add '1' | _ -> assert false)
-      () xs;
-    Buffer.contents b
+      () xs
+
+  let show_binary n = Format.asprintf "%a" pp_binary n
+
+  let pp_logic_binary ppf n =
+    try
+      let g = ground_of_logic_exn n in
+      pp_binary ppf g
+    with Failure _ -> pp_logic ppf n
+
+  let show_logic_binary n = Format.asprintf "%a" pp_logic_binary n
 
   let rec eq_exn xs ys =
     match (xs, ys) with
