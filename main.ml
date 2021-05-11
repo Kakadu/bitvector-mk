@@ -349,12 +349,12 @@ let test (evalo : (module Bv.S) -> _) m =
       (ph0 ph1 ph2 ph3 a b l0 l1 l2 l3 ans_var2)
       (a === Types.(T.var !!"a"))
       (b === Types.(T.var !!"b"))
-      (ph0 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a)
-      (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a)
-      (ph2 === Types.Ph.le b a)
+      (* (ph0 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a) *)
+      (* (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a) *)
+      (* (ph2 === Types.Ph.le b a) *)
       (* (ph3 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a) *)
       (* (ph3 === Types.Ph.le (Types.T.shl b l3) a) *)
-      (ans_var2 === Ph.(not (conj_list [ ph0; ph1; ph2; ph3 ])))
+      (ans_var === Ph.(not (conj_list [ ph0; ph1; ph2; ph3 ])))
       (loop ()) (ans_var === ans_var2)
       (* TODO: removing constraint below leads to more examples
          FIX: do not add duplicate examples.

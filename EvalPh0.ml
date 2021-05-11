@@ -21,10 +21,19 @@ let trace_bool n fmt =
         success
     | _ -> assert false)
 
-let trace_ph n fmt =
+let trace_ph : Types.Ph.injected -> _ -> _ =
+ fun n fmt ->
   debug_var n (flip Ph.reify) (function
     | [ f ] ->
-        Format.printf "%s: %s\n%!" (Format.asprintf fmt) (GT.show Ph.logic f);
+        let () =
+          try
+            let ph = Ph.ground_of_logic_exn f in
+            Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+              (GT.show Ph.ground ph)
+          with HasFreeVars _ ->
+            Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+              (GT.show Ph.logic f)
+        in
         success
     | _ -> assert false)
 

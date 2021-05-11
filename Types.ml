@@ -22,6 +22,40 @@ module OCanren = struct
     }
 end
 
+exception HasFreeVars of string
+
+let has_free_vars fmt = Format.kasprintf (fun s -> raise (HasFreeVars s)) fmt
+
+let forget_var : 'a. ('a -> 'b) -> 'a OCanren.logic -> 'b =
+ fun fa x ->
+  GT.transform OCanren.logic
+    (fun fself ->
+      object
+        inherit [_, _, _, _, _, _] OCanren.logic_t
+
+        method c_Var () _ _ = has_free_vars ""
+
+        method c_Value () _ v = fa v
+      end)
+    () x
+
+let rec forget_list :
+    ('a -> 'b) -> 'a OCanren.Std.List.logic -> 'b OCanren.Std.List.ground =
+ fun fa xs ->
+  forget_var
+    (GT.transform OCanren.Std.List.t
+       (fun fself ->
+         object
+           inherit [_, 'a, 'b, _, _, _, _, _, _] OCanren.Std.List.t_t
+
+           method c_Nil () _ = OCanren.Std.List.Nil
+
+           method c_Cons () _ h tl : _ OCanren.Std.List.ground =
+             OCanren.Std.List.Cons (fa h, forget_list fa tl)
+         end)
+       ())
+    xs
+
 let flip f a b = f b a
 
 let failwiths ppf = Format.kasprintf failwith ppf
@@ -38,6 +72,8 @@ module N = struct
   let logic = Bv.Repr.l
 
   let reify env x = Bv.Repr.reify env x
+
+  let ground_of_logic : logic -> ground = forget_list (forget_var Fun.id)
 
   let one : injected =
     let open OCanren in
@@ -84,8 +120,6 @@ module N = struct
 
   let to_smt_logic_exn ctx (xs : Bv.Repr.l) : Z3.Expr.expr =
     let (module T), _ = Algebra.to_z3 ctx in
-    (* let b = Buffer.create 20 in *)
-    (* Buffer.add_string b "#x"; *)
     let acc = ref 0 in
     let module L = OCanren.Std.List in
     let rec iter base = function
@@ -94,22 +128,13 @@ module N = struct
       | Var _ ->
           assert false
       | Value (L.Cons (Value n, tl)) ->
-          (* Buffer.add_char b (if n then '1' else '0'); *)
           acc := !acc + if n = 1 then base else 0;
           iter (base * 2) tl
       | Value L.Nil -> ()
     in
     iter 1 xs;
-    (* T.const_s (Buffer.contents b) *)
     T.const_s (string_of_int !acc)
 end
-
-exception HasFreeVars of string
-
-let has_free_vars fmt = Format.kasprintf (fun s -> raise (HasFreeVars s)) fmt
-
-(* let hacky_compare_logic ~f a b =
-  match (a, b) with Var _, _ | _, Var _ -> GT.LT | Value a, Value b -> f a b *)
 
 module T = struct
   type op = Shl | Lshr | Land | Lor | Mul | Add | Sub
@@ -139,6 +164,61 @@ module T = struct
   [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
   type nonrec injected = (ground, logic) injected
+
+  module PPNew = struct
+    let hack fa ppf = function
+      | OCanren.Value a -> fa ppf a
+      | Var (n, []) -> Format.fprintf ppf "_.%d" n
+      | Var (n, _) -> Format.fprintf ppf "_.%d {|constraints |}" n
+
+    let pp_algebra pp_self pp_op pp_bv pp_name =
+      GT.transform t (fun fself ->
+          object
+            inherit [_, _, _, _, _] fmt_t_t pp_self pp_op pp_bv pp_name fself
+
+            method c_Const ppf _ n = pp_bv ppf n
+
+            method c_SubjVar ppf _ v = pp_name ppf v
+
+            method c_Binop ppf _ op l r =
+              Format.fprintf ppf "(%a %a %a)" pp_op op pp_self l pp_self r
+          end)
+
+    let my_pp_op ppf = function
+      | Add -> Format.fprintf ppf "bvadd"
+      | Sub -> Format.fprintf ppf "bvsub"
+      | Mul -> Format.fprintf ppf "bvmul"
+      | Land -> Format.fprintf ppf "bvand"
+      | Lor -> Format.fprintf ppf "bvor"
+      | Shl -> Format.fprintf ppf "bvshl"
+      | Lshr -> Format.fprintf ppf "bvlshr"
+
+    let my_pp_name fmt _ = assert false
+
+    let rec my_ground_pp ppf : ground -> unit =
+      pp_algebra my_ground_pp my_pp_op
+        (fun fmt _ -> Format.fprintf fmt "SHIT")
+        my_pp_name ppf
+
+    let rec my_logic_pp ppf : logic -> unit =
+      hack
+        (pp_algebra my_logic_pp (hack my_pp_op)
+           (fun fmt _ -> Format.fprintf fmt "SHIT")
+           (hack my_pp_name))
+        ppf
+  end
+
+  let pp : Format.formatter -> ground -> unit =
+    let pp_op = PPNew.my_pp_op in
+    let rec helper ppf = function
+      | Const n -> Format.fprintf ppf "%s" (Bv.Repr.show_binary n)
+      | SubjVar s -> Format.pp_print_string ppf s
+      | Binop (op, l, r) ->
+          Format.fprintf ppf "(%a %a %a)" pp_op op helper l helper r
+      (* | Shl (l, r) -> Format.fprintf ppf "(bvshl %a %a)" helper l helper r
+         | Lshr (l, r) -> Format.fprintf ppf "(bvlshr %a %a)" helper l helper r *)
+    in
+    helper
 
   let lt_logic : logic -> logic -> bool =
    fun a b -> GT.compare logic a b = GT.LT
@@ -190,29 +270,8 @@ module T = struct
       | Const n -> const (Bv.Repr.inj n)
       | SubjVar s -> var !!s
       | Binop (op, l, r) -> of_op op (helper l) (helper r)
-      (* | Shl1 l -> shiftl1 (helper l)
-         | Lshr1 l -> lshiftr1 (helper l) *)
     in
-    helper
 
-  let pp : Format.formatter -> ground -> unit =
-    let pp_op ppf = function
-      | Add -> Format.fprintf ppf "bvadd"
-      | Sub -> Format.fprintf ppf "bvsub"
-      | Mul -> Format.fprintf ppf "bvmul"
-      | Land -> Format.fprintf ppf "bvand"
-      | Lor -> Format.fprintf ppf "bvor"
-      | Shl -> Format.fprintf ppf "bvshl"
-      | Lshr -> Format.fprintf ppf "bvlshr"
-    in
-    let rec helper ppf = function
-      | Const n -> Format.fprintf ppf "%s" (Bv.Repr.show_binary n)
-      | SubjVar s -> Format.pp_print_string ppf s
-      | Binop (op, l, r) ->
-          Format.fprintf ppf "(%a %a %a)" pp_op op helper l helper r
-      (* | Shl (l, r) -> Format.fprintf ppf "(bvshl %a %a)" helper l helper r
-         | Lshr (l, r) -> Format.fprintf ppf "(bvlshr %a %a)" helper l helper r *)
-    in
     helper
 
   let ground =
@@ -227,6 +286,47 @@ module T = struct
           method gmap = GT.gmap ground
         end;
     }
+
+  let ground_of_logic_exn : logic -> ground =
+    let helper =
+      forget_var
+        (GT.transform t
+           (fun fself ->
+             object
+               inherit
+                 [ unit,
+                   logic,
+                   ground,
+                   _,
+                   op OCanren.logic,
+                   op,
+                   _,
+                   N.logic,
+                   N.ground,
+                   _,
+                   GT.string OCanren.logic,
+                   GT.string,
+                   _,
+                   (_, _, _, _) t,
+                   ground ]
+                 t_t
+
+               method c_Const () _ (n : N.logic) = Const (N.ground_of_logic n)
+
+               method c_SubjVar () _ v = SubjVar (forget_var Fun.id v)
+
+               method c_Binop () _
+                   : op OCanren.logic -> logic -> logic -> ground =
+                 fun op l r ->
+                   Binop
+                     ( (forget_var Fun.id op : op),
+                       forget_var (fself ()) l,
+                       forget_var (fself ()) r )
+             end)
+           ())
+    in
+
+    helper
 
   let to_smt ctx : ground -> _ =
     let (module T), (module P) = Algebra.to_z3 ctx in
@@ -369,8 +469,6 @@ module Ph = struct
     | Op of 'binop * 'term * 'term
   [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
-  (* open OCanren *)
-
   module E = OCanren.Fmap4 (struct
     type nonrec ('a, 'b, 'c, 'd) t = ('a, 'b, 'c, 'd) t
 
@@ -414,12 +512,35 @@ module Ph = struct
 
   let not a = inj @@ E.distrib @@ Not a
 
-  let pp_ground : Format.formatter -> ground -> unit =
-    let pp_binop ppf = function
+  module PPNew = struct
+    let pp_algebra pp_self pp_list pp_binop pp_term =
+      GT.transform t (fun fself ->
+          object
+            inherit
+              [_, _, _, _, _] fmt_t_t pp_self pp_list pp_binop pp_term fself
+          end)
+
+    let my_pp_list fa ppf _ = assert false
+
+    let my_pp_binop ppf = function
       | Eq -> Format.fprintf ppf "="
       | Lt -> Format.fprintf ppf "<"
       | Le -> Format.fprintf ppf "<="
-    in
+
+    let rec my_ground_pp ppf : ground -> unit =
+      pp_algebra my_ground_pp (my_pp_list my_ground_pp) my_pp_binop
+        T.PPNew.my_ground_pp ppf
+
+    let rec my_logic_pp ppf : logic -> unit =
+      T.PPNew.hack
+        (pp_algebra my_logic_pp
+           (T.PPNew.hack @@ my_pp_list my_ground_pp)
+           (T.PPNew.hack my_pp_binop) T.PPNew.my_logic_pp)
+        ppf
+  end
+
+  let pp_ground : Format.formatter -> ground -> unit =
+    let pp_binop = PPNew.my_pp_binop in
     let rec helper ppf : ground -> _ = function
       | True -> Format.fprintf ppf "(= #x1 #x1)"
       | Op (op, l, r) ->
@@ -453,6 +574,54 @@ module Ph = struct
           method gmap = GT.gmap ground
         end;
     }
+
+  let ground_of_logic_exn : logic -> ground =
+    let rec helper =
+      forget_var
+        (GT.transform t
+           (fun fself ->
+             let (_ : logic Std.List.logic -> ground Std.List.ground) =
+               forget_list (forget_var @@ fself ())
+             in
+             object
+               inherit
+                 [ unit,
+                   logic,
+                   ground,
+                   _,
+                   logic OCanren.Std.List.logic,
+                   ground OCanren.Std.List.ground,
+                   _,
+                   binop OCanren.logic,
+                   binop,
+                   _,
+                   T.logic,
+                   T.ground,
+                   _,
+                   (_, _, _, _) t,
+                   ground ]
+                 t_t
+
+               method c_True () _ = True
+
+               method c_Not _ _ f : ground = Not (forget_var (fself ()) f)
+
+               method c_Op () _ op l r =
+                 Op
+                   ( forget_var Fun.id op,
+                     T.ground_of_logic_exn l,
+                     T.ground_of_logic_exn r )
+
+               method c_Disj () _ xs =
+                 Disj (forget_list (forget_var @@ fself ()) xs)
+
+               method c_Conj () _ xs =
+                 Conj (forget_list (forget_var @@ fself ()) xs)
+             end)
+           ())
+    in
+
+    helper
 
   let to_smt ctx gr =
     let term = T.to_smt ctx in
