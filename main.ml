@@ -275,7 +275,7 @@ let test (evalo : (module Bv.S) -> _) m =
           let _g, env0, is_true = MyQueue.get ex_storage i in
           (* Format.printf "Testing example: '%a'\n%!" EvalPh.Env.pp _g; *)
           evalo (module BV) env0 ans_var !!is_true
-          &&& EvalPh0.trace_bool !!is_true "evalo said"
+          (* &&& EvalPh0.trace_bool !!is_true "evalo said" *)
           (* &&& EvalPh0.trace_ph ans_var "\t\tcurrent answer:" *)
           &&& helper (1 + i)
       in
@@ -327,6 +327,8 @@ let test (evalo : (module Bv.S) -> _) m =
             (* There we should encode logic formula p to SMT and check that
                 not (I <=> p) is unsat
             *)
+            Format.printf "encoding to SMT a formula: `%a`\n%!"
+              Ph.PPNew.my_logic_pp p;
             let candidate = Ph.to_smt_logic_exn ctx p in
 
             let q = F.(not (iff candidate Z3Encoded.ph)) in
@@ -349,9 +351,9 @@ let test (evalo : (module Bv.S) -> _) m =
       (ph0 ph1 ph2 ph3 a b l0 r0 l1 r1 l2 r2 ans_var2 o3 l3 r3)
       (a === Types.(T.var !!"a"))
       (b === Types.(T.var !!"b"))
-      (* (ph0 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a) *)
-      (* (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a) *)
-      (* (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a) *)
+      (* (ph0 === Types.Ph.le l1 a) *)
+      (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a)
+      (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a)
       (ph3 === Types.Ph.le b a)
       (ph0 === Types.Ph.op !!Types.Ph.Le l0 r0)
       (ph1 === Types.Ph.op !!Types.Ph.Le l1 r1)
@@ -363,9 +365,9 @@ let test (evalo : (module Bv.S) -> _) m =
          FIX: do not add duplicate examples.
       *)
       (* (enough_variables ans_var) *)
-      (EvalPh0.trace_int !!1 "running cutter")
+      (* (EvalPh0.trace_int !!1 "running cutter") *)
       (cutter ans_var)
-      (EvalPh0.trace_int !!1 "cutter succeeded")
+    (* (EvalPh0.trace_int !!1 "cutter succeeded") *)
   in
   runR Ph.reify on_ground on_logic (Options.max options) q qh ("", goal)
 

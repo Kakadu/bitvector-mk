@@ -365,13 +365,13 @@ module T = struct
     in
     let rec helper : logic -> _ = function
       | Value (Binop (Var _, _, _)) ->
-          has_free_vars "logic inside %s %d (`%s`): " __FILE__ __LINE__
+          failwiths "logic inside %s %d (`%s`): " __FILE__ __LINE__
             (GT.show logic root)
       | Value (SubjVar (OCanren.Var _)) ->
           has_free_vars "logic inside %s %d" __FILE__ __LINE__
       | Var _ ->
-          has_free_vars "logic inside %s %d: `%s`" __FILE__ __LINE__
-            (GT.show logic root)
+          Format.printf "FIXME: inserting 'a' during SMT encoding...\n";
+          T.var "a"
       | Value (Const n) -> N.to_smt_logic_exn ctx n
       | Value (SubjVar (OCanren.Value s)) -> T.var s
       | Value (Binop (Value op, l, r)) -> on_op op (helper l) (helper r)
@@ -685,7 +685,7 @@ module Ph = struct
     in
 
     helper
-
+  (*
   let to_smt ctx gr =
     let term = T.to_smt ctx in
     let _, (module P) = Algebra.to_z3 ctx in
@@ -699,7 +699,7 @@ module Ph = struct
       | Disj (l, r) -> P.disj (helper l) (helper r)
       | Not l -> P.not (helper l)
     in
-    helper gr
+    helper gr *)
 
   let to_smt_logic_exn ctx : logic -> Z3.Expr.expr =
     let term = T.to_smt_logic_exn ctx in
@@ -721,17 +721,19 @@ module Ph = struct
       | Value (Conj (Value Std.List.Nil)) ->
           has_free_vars "We should not get empty conjunctions %d" __LINE__
       | Value (Conj (Value (Std.List.Cons (h, tl)))) ->
-          helper_list P.conj ~on_empty:(helper h) tl
+          helper_list P.conj ~acc:(helper h) tl
       | Value (Disj (Value Std.List.Nil)) ->
           has_free_vars "We should not get empty disjunctions %d" __LINE__
       | Value (Disj (Value (Std.List.Cons (h, tl)))) ->
-          helper_list P.disj ~on_empty:(helper h) tl
-    and helper_list ~on_empty op = function
+          helper_list P.disj ~acc:(helper h) tl
+    and helper_list ~acc op = function
       | Var _ -> has_free_vars "Var in a cons cell %d" __LINE__
-      | Value (Std.List.Cons (Var _, tl)) -> helper_list ~on_empty op tl
+      (* | Value (Std.List.Cons (Var _, tl)) ->
+
+         helper_list ~acc op tl *)
       | Value (Std.List.Cons (e, tl)) ->
-          op (helper e) (helper_list ~on_empty op tl)
-      | Value Std.List.Nil -> on_empty
+          helper_list ~acc:(op acc (helper e)) op tl
+      | Value Std.List.Nil -> acc
     in
     helper
 
