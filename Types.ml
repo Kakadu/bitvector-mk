@@ -58,7 +58,10 @@ let rec forget_list :
 
 let flip f a b = f b a
 
-let failwiths ppf = Format.kasprintf failwith ppf
+let failwiths ~here:{ Lexing.pos_fname; pos_lnum } ppf =
+  Format.kasprintf
+    (fun s -> failwith @@ Format.asprintf "%s %d:  %s" pos_fname pos_lnum s)
+    ppf
 
 module N = struct
   type ground = Bv.Repr.g
@@ -807,22 +810,30 @@ module Env = struct
   let reify env : injected -> logic =
     Std.List.reify (Std.Pair.reify OCanren.reify T.reify) env
 
+  let embed : _ -> ground =
+    OCanren.Std.List.of_list (fun (a, b) -> (a, T.Const b))
+
   let empty : injected = Std.nil ()
 
   let cons name t : injected -> injected = Std.List.cons (Std.Pair.pair name t)
 
   let conso name t (tail : injected) (env : injected) = env === cons name t tail
 
+  (* let rec lookupo name (env : injected) rez =
+     conde
+       [
+         fresh (k1 v1 e1) (conso k1 v1 e1 env)
+           (conde
+              [
+                k1 === name &&& (rez === v1); k1 =/= name &&& lookupo name e1 rez;
+              ]);
+         env === empty &&& failure;
+       ] *)
   let rec lookupo name (env : injected) rez =
-    conde
-      [
-        fresh (k1 v1 e1) (conso k1 v1 e1 env)
-          (conde
-             [
-               k1 === name &&& (rez === v1); k1 =/= name &&& lookupo name e1 rez;
-             ]);
-        env === empty &&& failure;
-      ]
+    Fresh.three (fun k1 v1 e1 ->
+        conso k1 v1 e1 env
+        &&& (k1 === name &&& (rez === v1)
+            ||| (k1 =/= name &&& lookupo name e1 rez)))
 
   let inject : ground -> injected =
     let rec helper = function
@@ -859,6 +870,8 @@ let mk_of_term (module BV : Bv.S) =
     let const n = T.const (BV.build_num n)
 
     let const_s s : t = T.const (BV.build_num @@ int_of_string s)
+
+    let const_int n = T.const (BV.build_num n)
 
     let land_ = T.land_
 
@@ -928,7 +941,7 @@ let mk_of_formula =
       f
 
     let exists name f =
-      Format.eprintf "exists is not supported\n%s %d" __FILE__ __LINE__;
+      failwiths "exists is not supported\n%s %d" __FILE__ __LINE__;
       f
   end in
   (module P : Algebra.FORMULA

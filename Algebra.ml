@@ -16,6 +16,8 @@ module type TERM = sig
 
   val const_s : string -> t
 
+  val const_int : int -> t
+
   val land_ : t -> t -> t
 
   val lor_ : t -> t -> t
@@ -144,11 +146,13 @@ let z3_of_term ctx =
 
     let var s = BitVector.mk_const ctx (Symbol.mk_string ctx s) bv_size
 
-    let const n =
-      Expr.mk_numeral_string ctx (Printf.sprintf "#x%X" n)
-        (BitVector.mk_sort ctx bv_size)
-
     let const_s s = Expr.mk_numeral_string ctx s (BitVector.mk_sort ctx bv_size)
+
+    let const_int n =
+      (* creates `|9|`, etc. WHY??? *)
+      (* BitVector.mk_const_s ctx (string_of_int n) bv_size *)
+      (* ugly but works *)
+      const_s (string_of_int n)
 
     let land_ = BitVector.mk_and ctx
 
@@ -256,6 +260,8 @@ let freevars m =
     let lor_ = add
 
     let const_s _ = SS.empty
+
+    let const_int _ = SS.empty
 
     let var = SS.singleton
   end in

@@ -186,6 +186,7 @@ let test (evalo : (module Bv.S) -> _) m =
             Format.printf
               "Predefined answers fits by the opinon of SMT solver!\n%!")
   in
+
   (* let _ =
        match Z3Encoded.answer with
        | None -> ()
@@ -197,15 +198,16 @@ let test (evalo : (module Bv.S) -> _) m =
                Format.printf
                  "Predefined answers fits by the opinon of SMT solver!\n%!")
      in *)
-  let _ =
-    let (module T), (module P) = Types.to_mk (module BV) in
-    let module MkEncoded = I (T) (P) in
-    ()
-  in
-
+  (* let _ =
+       let (module T), (module P) = Types.to_mk (module BV) in
+       let module MkEncoded = I (T) (P) in
+       ()
+     in *)
   let apply_model ph ~model =
     match Z3.Model.eval model ph true with
     | None -> failwith "should not happen"
+    | Some e when Z3.Boolean.is_true e -> true
+    | Some e when Z3.Boolean.is_false e -> false
     | Some e when not (Z3.Expr.is_const e) -> (
         match run_solver e with
         | Z3.Solver.UNKNOWN ->
@@ -217,7 +219,8 @@ let test (evalo : (module Bv.S) -> _) m =
         failwith "not implemented"
   in
 
-  let ex_storage, myenqueue =
+  let q = MyQueue.create () in
+  let ex_storage, myenqueue, pack_of_cut_examples =
     let _eval m =
       match Z3.Model.eval m Z3Encoded.ph false with
       | None -> failwith "should not happen"
@@ -226,8 +229,8 @@ let test (evalo : (module Bv.S) -> _) m =
           printf "Model evaluation result is : %s\n%!" (Z3.Expr.to_string e);
           42
     in
+    let cutted = ref (Z3.Boolean.mk_true ctx) in
 
-    let q = MyQueue.create () in
     let myenqueue model b =
       let env =
         Algebra.SS.fold
@@ -236,7 +239,6 @@ let test (evalo : (module Bv.S) -> _) m =
             let estr = Z3.Expr.to_string eans in
             try
               Scanf.sscanf estr "#x%X" (fun n ->
-                  (* failwith estr; *)
                   Std.List.Cons ((name, Types.T.Const (BV.of_int n)), acc))
             with Scanf.Scan_failure s as e ->
               Format.eprintf "Error while parsing a string '%s'\n%!" estr;
@@ -258,7 +260,40 @@ let test (evalo : (module Bv.S) -> _) m =
           let model = Z3.Solver.get_model solver |> Option.get in
           myenqueue model (apply_model Z3Encoded.ph ~model)
     in
-    (q, myenqueue)
+    let () =
+      let module P = Algebra.EnrichFormula (P) in
+      let manual_answers =
+        [ (* [ ("b", 9); ("a", 8) ];  *) [ ("b", 0); ("a", 8) ] ]
+      in
+
+      List.iter
+        (fun env ->
+          let genv =
+            Types.Env.embed @@ List.map (fun (a, b) -> (a, BV.of_int b)) env
+          in
+          let envf =
+            List.fold_left
+              (fun acc (x, v) -> P.(acc && T.var x == T.const_int v))
+              P.true_ env
+          in
+          let ph0 = P.conj envf Z3Encoded.ph in
+          Format.printf "%s\n%!" (Z3.Expr.to_string ph0);
+          let ans =
+            match run_solver ph0 with
+            | Z3.Solver.UNKNOWN ->
+                failwith "Solver should not return UNKNOWN result"
+            | UNSATISFIABLE -> false
+            | SATISFIABLE ->
+                (* let model = Z3.Solver.get_model solver |> Option.get in
+                   Format.printf "Got a model that should be empty : `%s`\n"
+                     (Z3.Model.to_string model); *)
+                true
+          in
+          MyQueue.enqueue q genv ans)
+        manual_answers
+    in
+
+    (q, myenqueue, cutted)
   in
 
   let on_ground ~span:_ x = Format.asprintf "%a" (GT.fmt Ph.ground) x in
@@ -351,14 +386,20 @@ let test (evalo : (module Bv.S) -> _) m =
       (ph0 ph1 ph2 ph3 a b l0 r0 l1 r1 l2 r2 ans_var2 o3 l3 r3)
       (a === Types.(T.var !!"a"))
       (b === Types.(T.var !!"b"))
-      (* (ph0 === Types.Ph.le l1 a) *)
-      (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a)
-      (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a)
-      (ph3 === Types.Ph.le b a)
-      (ph0 === Types.Ph.op !!Types.Ph.Le l0 r0)
-      (ph1 === Types.Ph.op !!Types.Ph.Le l1 r1)
-      (ph2 === Types.Ph.op !!Types.Ph.Le l2 r2)
-      (ph3 === Types.Ph.op !!Types.Ph.Le l3 r3)
+      (ph0 === Types.Ph.le b a)
+      (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a)
+      (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a)
+      (* (ph3 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a) *)
+      (ph0 === Types.Ph.le l0 a)
+      (ph1 === Types.Ph.le l1 a)
+      (* (ph2 === Types.Ph.le l2 a) *)
+      (* (ph3 === Types.Ph.le l3 a) *)
+      (* (ph2 === Types.Ph.le (Types.T.shl b l2) a) *)
+      (ph3 === Types.Ph.le (Types.T.shl b l3) a)
+      (* (ph0 === Types.Ph.op !!Types.Ph.Le l0 r0)
+         (ph1 === Types.Ph.op !!Types.Ph.Le l1 r1)
+         (ph2 === Types.Ph.op !!Types.Ph.Le l2 r2)
+         (ph3 === Types.Ph.op !!Types.Ph.Le l3 r3) *)
       (ans_var === Ph.(not (conj_list [ ph0; ph1; ph2; ph3 ])))
       (loop ()) (ans_var === ans_var2)
       (* TODO: removing constraint below leads to more examples
