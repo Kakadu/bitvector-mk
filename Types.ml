@@ -258,6 +258,8 @@ module T = struct
 
   let lshr a b = inj @@ E.distrib @@ Binop (!!Lshr, a, b)
 
+  let op o a b = inj @@ E.distrib @@ Binop (o, a, b)
+
   let inj : ground -> injected =
     let of_op = function
       | Add -> add
@@ -688,21 +690,6 @@ module Ph = struct
     in
 
     helper
-  (*
-  let to_smt ctx gr =
-    let term = T.to_smt ctx in
-    let _, (module P) = Algebra.to_z3 ctx in
-
-    let rec helper = function
-      | True -> P.true_
-      | Op (Eq, l, r) -> P.eq (term l) (term r)
-      | Op (Le, l, r) -> P.le (term l) (term r)
-      | Op (Lt, l, r) -> P.lt (term l) (term r)
-      | Conj (l, r) -> P.conj (helper l) (helper r)
-      | Disj (l, r) -> P.disj (helper l) (helper r)
-      | Not l -> P.not (helper l)
-    in
-    helper gr *)
 
   let to_smt_logic_exn ctx : logic -> Z3.Expr.expr =
     let term = T.to_smt_logic_exn ctx in

@@ -104,10 +104,10 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
             | Var _ -> failwiths "should not happen"
             | Value (a, b) -> (
                 match GT.compare Ph.logic a b with
-                | LT -> true
+                | LT | EQ -> true
                 | _ ->
                     Format.printf "comparsion said (not<=): %a and %a\n%!"
-                      (GT.fmt Ph.logic) a (GT.fmt Ph.logic) b;
+                      Ph.PPNew.my_logic_pp a Ph.PPNew.my_logic_pp b;
                     false)))
           (evalo env h arez) (make_decision arez h tl);
       ]
@@ -166,14 +166,14 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
     in
     conde
       [
+        conde
+          (List.map
+             (fun n -> t === rez &&& (t === T.const (BV.build_num n)))
+             [ 1; 2; 3 ]);
+        (* t === rez &&& (t === T.const (BV.build_num 1));
+           t === rez &&& (t === T.const (BV.build_num 2));
+           t === rez &&& (t === T.const (BV.build_num 3)); *)
         fresh v (t === T.var v) (Env.lookupo v env rez);
-        (* conde
-           (List.map
-              (fun n -> t === rez &&& (t === T.const (BV.build_num n)))
-              [ 1; 2; 3 ]); *)
-        t === rez &&& (t === T.const (BV.build_num 1));
-        t === rez &&& (t === T.const (BV.build_num 2));
-        t === rez &&& (t === T.const (BV.build_num 3));
         wrap_binop T.shl BV.shiftlo
         (* ~cstr:(fun a b ->
             structural (Std.pair a b) (Std.Pair.reify T.reify T.reify) (function
