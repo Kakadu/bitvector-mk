@@ -156,7 +156,7 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
       ]
   and termo env (t : T.injected) (rez : T.injected) =
     let wrap_binop ?(cstr = fun _ _ -> success) top bvop =
-      fresh (l r l2 r2 r0 h1 h2)
+      fresh (l r l2 r2 r0)
         (t === top l r)
         (cstr l r)
         (rez === T.const r0)
@@ -174,11 +174,10 @@ let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
            t === rez &&& (t === T.const (BV.build_num 2));
            t === rez &&& (t === T.const (BV.build_num 3)); *)
         fresh v (t === T.var v) (Env.lookupo v env rez);
-        wrap_binop T.shl BV.shiftlo
-        (* ~cstr:(fun a b ->
+        wrap_binop T.shl BV.shiftlo ~cstr:(fun a b ->
             structural (Std.pair a b) (Std.Pair.reify T.reify T.reify) (function
               | Value (Value (T.Const _), Value (T.Const _)) -> false
-              | _ -> true)) *);
+              | _ -> true));
       ]
   in
   evalo

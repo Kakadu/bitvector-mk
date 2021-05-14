@@ -355,6 +355,7 @@ let test (evalo : (module Bv.S) -> _) m =
           let cur_vars = collect_in_ph Algebra.SS.empty p in
           if Algebra.SS.equal cur_vars free then success else failure)
     in
+
     let cutter q =
       debug_var q (flip Ph.reify) (fun p ->
           let p = match p with [ h ] -> h | _ -> assert false in
@@ -386,9 +387,9 @@ let test (evalo : (module Bv.S) -> _) m =
       (ph0 ph1 ph2 ph3 a b l0 r0 l1 r1 l2 r2 ans_var2 o3 l3 r3)
       (a === Types.(T.var !!"a"))
       (b === Types.(T.var !!"b"))
-      (ph0 === Types.Ph.le b a)
-      (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a)
-      (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a)
+      (* (ph0 === Types.Ph.le b a) *)
+      (* (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a) *)
+      (* (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a) *)
       (* (ph3 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a) *)
       (* (ph0 === Types.Ph.le l0 a) *)
       (* (ph1 === Types.Ph.le l1 a) *)
