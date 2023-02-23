@@ -6,9 +6,7 @@ module Options = struct
   type options = { mutable max_answers : int }
 
   let max { max_answers } = max_answers
-
   let set_max o n = o.max_answers <- n
-
   let create () = { max_answers = 1 }
 end
 
@@ -36,25 +34,21 @@ let rec inhabito term r =
     ]
  *)
 (* let __ () =
-  let on_ground x = Format.asprintf "%a" (GT.fmt Ph.ground) x in
-  let _on_logic x = GT.show Ph.logic x in
-  let open OCanren in
-  let open Tester in
-  (* runR Ph.reify on_ground on_logic 20 q qh ("", fun q -> inhabito q) *)
-  run_exn on_ground 20 q qh
-    ("", fun q -> inhabito (inhabito_term (fun _ -> failure)) q)
- *)
+   let on_ground x = Format.asprintf "%a" (GT.fmt Ph.ground) x in
+   let _on_logic x = GT.show Ph.logic x in
+   let open OCanren in
+   let open Tester in
+   (* runR Ph.reify on_ground on_logic 20 q qh ("", fun q -> inhabito q) *)
+   run_exn on_ground 20 q qh
+     ("", fun q -> inhabito (inhabito_term (fun _ -> failure)) q)
+*)
 module MyQueue : sig
   type t
 
   val enqueue : t -> Env.ground -> bool -> unit
-
   val create : unit -> t
-
   val get : t -> int -> Env.ground * Env.injected * bool
-
   val size : t -> int
-
   val report_queue_stats : t -> unit
 end = struct
   module Arr = Res.Array
@@ -79,7 +73,6 @@ end = struct
     with Duplicate -> incr q.count
 
   let create () : t = { arr = Arr.empty (); count = ref 0 }
-
   let get { arr } = Arr.get arr
 
   (* let clear q = q := [] *)
@@ -121,13 +114,17 @@ let trace_new_example =
 [%%else]
 
 let trace_on_success _ = ()
-
 let trace_intermediate_candidate _ = ()
-
 let trace_new_example _ _ _ = ()
 
 [%%endif]
 
+(*
+let (_ : float -> int) =
+  let on_logic ~span:_ x = Format.asprintf "%a" (GT.fmt Ph.logic) x in
+  (* Mytester.(run_r Ph.reify on_logic 1 q qh) *)
+  OCanren.(run q (fun q -> q === Ph.true_) (fun r -> r#reify Ph.reify))
+ *)
 let test (evalo : (module Bv.S) -> _) m =
   let ctx = Z3.mk_context [] in
   let solver = Z3.Solver.mk_simple_solver ctx in
@@ -414,6 +411,6 @@ let test (evalo : (module Bv.S) -> _) m =
       (cutter ans_var)
     (* (EvalPh0.trace_int !!1 "cutter succeeded") *)
   in
-  runR Ph.reify on_ground on_logic (Options.max options) q qh ("", goal)
+  run_r Ph.reify on_logic (Options.max options) q qh ("", goal)
 
 let () = test EvalPh0.evalo_helper Algebra.ex4

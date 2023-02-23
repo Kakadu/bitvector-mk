@@ -6,21 +6,14 @@ module Repr : sig
   open OCanren
 
   type e = int
-
   type g = e OCanren.Std.List.ground
-
   type l = e OCanren.logic OCanren.Std.List.logic
-
-  type n = (g, l) OCanren.injected
-
-  type injected = n
+  type injected = e OCanren.ilogic OCanren.Std.List.injected
+  type n = injected
 
   val inj : g -> injected
-
-  val reify : OCanren.Env.t -> n -> l
-
-  val prjc_exn : Env.t -> injected -> g
-
+  val reify : (injected, l) OCanren.Reifier.t
+  val prj_exn : (injected, g) OCanren.Reifier.t
   val eq_exn : g -> g -> bool
 
   val g :
@@ -28,6 +21,7 @@ module Repr : sig
       < show : g -> string
       ; gmap : g -> g
       ; fmt : Format.formatter -> g -> unit
+      ; foldl : 'a -> g -> 'a
       ; compare : g -> g -> GT.comparison >,
       unit )
     GT.t
@@ -43,13 +37,9 @@ module Repr : sig
     GT.t
 
   val show : g -> string
-
   val show_binary : g -> string
-
   val show_logic : l -> string
-
   val pp_binary : Format.formatter -> g -> unit
-
   val pp_logic_binary : Format.formatter -> l -> unit
 end
 
@@ -58,15 +48,10 @@ module type S = sig
   open OCanren
 
   val show_binary : g -> string
-
   val build_num : int -> n
-
   val of_int : int -> g
-
-  val mod2 : n -> (e, e logic) injected -> goal
-
+  val mod2 : n -> e ilogic -> goal
   val mul2 : n -> n -> goal
-
   val addo : n -> n -> n -> goal
   (*
   val gen_addero : int -> (int, int logic) OCanren.injected ->
@@ -77,37 +62,21 @@ module type S = sig
  *)
 
   val subo : n -> n -> n -> goal
-
   val multo : n -> n -> n -> goal
-
   val shiftl1 : n -> n -> goal
-
   val lshiftr1 : n -> n -> goal
-
   val ashiftr1 : n -> n -> goal
-
   val ashiftro : n -> n -> n -> goal
-
   val lshiftro : n -> n -> n -> goal
-
   val shiftlo : n -> n -> n -> goal
-
   val rotl : n -> n -> goal
-
   val rotr : n -> n -> goal
-
   val loro : n -> n -> n -> goal
-
   val lando : n -> n -> n -> goal
-
   val lto : n -> n -> goal
-
   val leo : n -> n -> goal
-
-  val compare_helper : n -> n -> (cmp_t, cmp_t logic) OCanren.injected -> goal
-
+  val compare_helper : n -> n -> cmp_t OCanren.ilogic -> goal
   val forallo : n -> (n -> goal) -> goal
-
   val width : int
 end
 

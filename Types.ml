@@ -7,20 +7,20 @@ module OCanren = struct
       GT.plugins =
         object
           method show = GT.show OCanren.logic
-
           method fmt = GT.fmt OCanren.logic
-
           method gmap = GT.gmap OCanren.logic
-
           method foldl = GT.foldl OCanren.logic
 
           method compare f a b =
+            (* TODO(Kakadu): WHY? *)
             match (a, b) with
             | Var _, _ | _, Var _ -> GT.LT
             | Value ax, Value bx -> f ax bx
         end;
     }
 end
+
+open OCanren
 
 exception HasFreeVars of string
 
@@ -32,9 +32,7 @@ let forget_var : 'a. ('a -> 'b) -> 'a OCanren.logic -> 'b =
     (fun fself ->
       object
         inherit [_, _, _, _, _, _] OCanren.logic_t
-
         method c_Var () _ _ = has_free_vars ""
-
         method c_Value () _ v = fa v
       end)
     () x
@@ -47,7 +45,6 @@ let rec forget_list :
        (fun fself ->
          object
            inherit [_, 'a, 'b, _, _, _, _, _, _] OCanren.Std.List.t_t
-
            method c_Nil () _ = OCanren.Std.List.Nil
 
            method c_Cons () _ h tl : _ OCanren.Std.List.ground =
@@ -58,24 +55,21 @@ let rec forget_list :
 
 let flip f a b = f b a
 
-let failwiths ~here:{ Lexing.pos_fname; pos_lnum } ppf =
+let failwiths ?(here = Lexing.dummy_pos) ppf =
+  let { Lexing.pos_fname; pos_lnum } = here in
   Format.kasprintf
     (fun s -> failwith @@ Format.asprintf "%s %d:  %s" pos_fname pos_lnum s)
     ppf
 
 module N = struct
   type ground = Bv.Repr.g
-
   type nonrec logic = Bv.Repr.l
-
   type nonrec injected = Bv.Repr.injected
 
   let ground = Bv.Repr.g
-
   let logic = Bv.Repr.l
-
-  let reify env x = Bv.Repr.reify env x
-
+  let reify = Bv.Repr.reify
+  let prj_exn = Bv.Repr.prj_exn
   let ground_of_logic : logic -> ground = forget_list (forget_var Fun.id)
 
   let one : injected =
@@ -101,9 +95,9 @@ module N = struct
       GT.plugins =
         object
           method show n = string_of_int @@ int_of_ground n
-
           method gmap = ground.GT.plugins#gmap
-
+          method compare = ground.GT.plugins#compare
+          method foldl = ground.GT.plugins#foldl
           method fmt ppf n = Format.pp_print_int ppf (int_of_ground n)
         end;
     }
@@ -139,11 +133,15 @@ module N = struct
     T.const_s (string_of_int !acc)
 end
 
-module T = struct
+module Op = struct
+  [%%ocanren
   type op = Shl | Lshr | Land | Lor | Mul | Add | Sub
-  [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
+  [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]]
+end
 
-  type ('self, 'op, 'int, 'varname) t =
+module T = struct
+  [%%ocanren
+  type nonrec ('self, 'op, 'int, 'varname) t =
     | Const of 'int
     | SubjVar of 'varname
     (* | Shl1 of 'self
@@ -151,22 +149,21 @@ module T = struct
     | Binop of 'op * 'self * 'self
   [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
-  open OCanren
+  type ground = (ground, Op.ground, N.ground, GT.string) t]
 
-  module E = Fmap4 (struct
-    type nonrec ('a, 'b, 'c, 'd) t = ('a, 'b, 'c, 'd) t
+  (* module E = Fmap4 (struct
+       type nonrec ('a, 'b, 'c, 'd) t = ('a, 'b, 'c, 'd) t
 
-    let fmap eta = GT.gmap t eta
-  end)
+       let fmap eta = GT.gmap t eta
+     end) *)
 
-  type ground = (ground, op, N.ground, GT.string) t
-  [@@deriving gt ~options:{ show; fmt; gmap }]
+  (* [@@deriving gt ~options:{ show; fmt; gmap }] *)
 
-  type logic =
-    (logic, op OCanren.logic, N.logic, GT.string OCanren.logic) t OCanren.logic
-  [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
+  (* type logic =
+       (logic, op OCanren.logic, N.logic, GT.string OCanren.logic) t OCanren.logic
+     [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }] *)
 
-  type nonrec injected = (ground, logic) injected
+  (* type nonrec injected = (ground, logic) injected *)
 
   module PPNew = struct
     let hack fa ppf = function
@@ -178,17 +175,15 @@ module T = struct
       GT.transform t (fun fself ->
           object
             inherit [_, _, _, _, _] fmt_t_t pp_self pp_op pp_bv pp_name fself
+            method! c_Const ppf _ n = pp_bv ppf n
+            method! c_SubjVar ppf _ v = pp_name ppf v
 
-            method c_Const ppf _ n = pp_bv ppf n
-
-            method c_SubjVar ppf _ v = pp_name ppf v
-
-            method c_Binop ppf _ op l r =
+            method! c_Binop ppf _ op l r =
               Format.fprintf ppf "(%a %a %a)" pp_op op pp_self l pp_self r
           end)
 
     let my_pp_op ppf = function
-      | Add -> Format.fprintf ppf "bvadd"
+      | Op.Add -> Format.fprintf ppf "bvadd"
       | Sub -> Format.fprintf ppf "bvsub"
       | Mul -> Format.fprintf ppf "bvmul"
       | Land -> Format.fprintf ppf "bvand"
@@ -234,35 +229,26 @@ module T = struct
      in
 
      helper (a, b) *)
-  let rec reify env x = E.reify reify OCanren.reify N.reify OCanren.reify env x
+  (* let rec reify env x = E.reify reify OCanren.reify N.reify OCanren.reify env x *)
+  let const (x : Bv.Repr.injected) : injected = inj @@ Const x
+  let var s : injected = inj @@ SubjVar s
 
-  let const (x : Bv.Repr.injected) : injected = inj @@ E.distrib @@ Const x
+  (* let shiftl1 a : injected = inj @@ Shl1 a
 
-  let var s : injected = inj @@ E.distrib @@ SubjVar s
-
-  (* let shiftl1 a : injected = inj @@ E.distrib @@ Shl1 a
-
-     let lshiftr1 a : injected = inj @@ E.distrib @@ Lshr1 a
+     let lshiftr1 a : injected = inj @@ Lshr1 a
   *)
-  let land_ a b = inj @@ E.distrib @@ Binop (!!Land, a, b)
-
-  let lor_ a b = inj @@ E.distrib @@ Binop (!!Lor, a, b)
-
-  let mul a b = inj @@ E.distrib @@ Binop (!!Mul, a, b)
-
-  let add a b = inj @@ E.distrib @@ Binop (!!Add, a, b)
-
-  let sub a b = inj @@ E.distrib @@ Binop (!!Sub, a, b)
-
-  let shl a b = inj @@ E.distrib @@ Binop (!!Shl, a, b)
-
-  let lshr a b = inj @@ E.distrib @@ Binop (!!Lshr, a, b)
-
-  let op o a b = inj @@ E.distrib @@ Binop (o, a, b)
+  let land_ a b = inj @@ Binop (!!Op.Land, a, b)
+  let lor_ a b = inj @@ Binop (!!Op.Lor, a, b)
+  let mul a b = inj @@ Binop (!!Op.Mul, a, b)
+  let add a b = inj @@ Binop (!!Op.Add, a, b)
+  let sub a b = inj @@ Binop (!!Op.Sub, a, b)
+  let shl a b = inj @@ Binop (!!Op.Shl, a, b)
+  let lshr a b = inj @@ Binop (!!Op.Lshr, a, b)
+  let op o a b = inj @@ Binop (o, a, b)
 
   let inj : ground -> injected =
     let of_op = function
-      | Add -> add
+      | Op.Add -> add
       | Sub -> sub
       | Mul -> mul
       | Land -> land_
@@ -284,10 +270,10 @@ module T = struct
       GT.plugins =
         object
           method show = GT.show ground
-
           method fmt = pp
-
           method gmap = GT.gmap ground
+          method compare = GT.compare ground
+          method foldl = GT.foldl ground
         end;
     }
 
@@ -302,8 +288,8 @@ module T = struct
                    logic,
                    ground,
                    _,
-                   op OCanren.logic,
-                   op,
+                   Op.t OCanren.logic,
+                   Op.t,
                    _,
                    N.logic,
                    N.ground,
@@ -316,14 +302,13 @@ module T = struct
                  t_t
 
                method c_Const () _ (n : N.logic) = Const (N.ground_of_logic n)
-
                method c_SubjVar () _ v = SubjVar (forget_var Fun.id v)
 
                method c_Binop () _
-                   : op OCanren.logic -> logic -> logic -> ground =
+                   : Op.t OCanren.logic -> logic -> logic -> ground =
                  fun op l r ->
                    Binop
-                     ( (forget_var Fun.id op : op),
+                     ( (forget_var Fun.id op : Op.t),
                        forget_var (fself ()) l,
                        forget_var (fself ()) r )
              end)
@@ -337,7 +322,7 @@ module T = struct
     (* TODO: maybe returned T should already be enriched *)
     let module T = Algebra.EnrichTerm (T) in
     let on_op = function
-      | Add -> T.add
+      | Op.Add -> T.add
       | Sub -> T.sub
       | Mul -> T.mul
       | Shl -> T.shl
@@ -360,7 +345,7 @@ module T = struct
     let (module T), _ = Algebra.to_z3 ctx in
     let module T = Algebra.EnrichTerm (T) in
     let on_op = function
-      | Add -> T.add
+      | Op.Add -> T.add
       | Sub -> T.sub
       | Mul -> T.mul
       | Shl -> T.shl
@@ -370,8 +355,8 @@ module T = struct
     in
     let rec helper : logic -> _ = function
       | Value (Binop (Var _, _, _)) ->
-          failwiths "logic inside %s %d (`%s`): " __FILE__ __LINE__
-            (GT.show logic root)
+          failwiths ~here:[%here] "logic inside %s %d (`%s`): " __FILE__
+            __LINE__ (GT.show logic root)
       | Value (SubjVar (OCanren.Var _)) ->
           has_free_vars "logic inside %s %d" __FILE__ __LINE__
       | Var _ ->
@@ -455,11 +440,17 @@ let __ () =
   run_exn on_ground 20 q qh ("", inhabito_term (fun q -> q === !!"a"))
  *)
 
-module Ph = struct
-  type binop = Eq | Lt | Le
+module Binop = struct
+  [%%ocanren
+  type nonrec t = Eq | Lt | Le
   [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
-  type ('self, 'selflist, 'binop, 'term) t =
+  type ground = t]
+end
+
+module Ph = struct
+  [%%ocanren
+  type nonrec ('self, 'selflist, 'binop, 'term) t =
     | True
     | Conj of 'selflist
     | Disj of 'selflist
@@ -467,50 +458,40 @@ module Ph = struct
     | Op of 'binop * 'term * 'term
   [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
-  module E = OCanren.Fmap4 (struct
-    type nonrec ('a, 'b, 'c, 'd) t = ('a, 'b, 'c, 'd) t
+  type ground =
+    (ground, ground OCanren.Std.List.ground, Binop.ground, T.ground) t]
 
-    let fmap eta = GT.gmap t eta
-  end)
+  (* module E = OCanren.Fmap4 (struct
+       type nonrec ('a, 'b, 'c, 'd) t = ('a, 'b, 'c, 'd) t
 
-  open OCanren
+       let fmap eta = GT.gmap t eta
+     end)
+  *)
+  (* open OCanren *)
+  (* [@@deriving gt ~options:{ show; fmt; gmap }] *)
 
-  type ground = (ground, ground OCanren.Std.List.ground, binop, T.ground) t
-  [@@deriving gt ~options:{ show; fmt; gmap }]
+  (* type logic =
+       (logic, logic OCanren.Std.List.logic, binop OCanren.logic, T.logic) t
+       OCanren.logic
+     [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
+  *)
+  (* type nonrec injected = (ground, logic) OCanren.injected *)
 
-  type logic =
-    (logic, logic OCanren.Std.List.logic, binop OCanren.logic, T.logic) t
-    OCanren.logic
-  [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
-
-  type nonrec injected = (ground, logic) OCanren.injected
-
-  let rec reify env : injected -> logic =
-    E.reify reify (OCanren.Std.List.reify reify) OCanren.reify T.reify env
-
-  let true_ : injected = inj @@ E.distrib True
-
-  let eq a b = inj @@ E.distrib @@ Op (!!Eq, a, b)
-
-  let lt a b = inj @@ E.distrib @@ Op (!!Lt, a, b)
-
-  let le a b = inj @@ E.distrib @@ Op (!!Le, a, b)
-
-  let op o a b = inj @@ E.distrib @@ Op (o, a, b)
-
-  let conj2 a (b : injected) = inj @@ E.distrib @@ Conj Std.(a % (b % nil ()))
-
-  let conj_list xs : injected = inj @@ E.distrib @@ Conj (Std.list Fun.id xs)
-
-  let conj xs = inj @@ E.distrib @@ Conj xs
-
-  let disj2 a (b : injected) = inj @@ E.distrib @@ Disj Std.(a % (b % nil ()))
-
-  let disj a b = inj @@ E.distrib @@ Disj Std.(a % (b % nil ()))
-
-  let disj_list xs : injected = inj @@ E.distrib @@ Disj (Std.list Fun.id xs)
-
-  let not a = inj @@ E.distrib @@ Not a
+  (* let rec reify env : injected -> logic =
+     E.reify reify (OCanren.Std.List.reify reify) OCanren.reify T.reify env
+  *)
+  let true_ : injected = inj True
+  let eq a b = inj @@ Op (!!Binop.Eq, a, b)
+  let lt a b = inj @@ Op (!!Binop.Lt, a, b)
+  let le a b = inj @@ Op (!!Binop.Le, a, b)
+  let op o a b = inj @@ Op (o, a, b)
+  let conj2 a (b : injected) = inj @@ Conj Std.(a % (b % nil ()))
+  let conj_list xs : injected = inj @@ Conj (Std.list Fun.id xs)
+  let conj xs = inj @@ Conj xs
+  let disj2 a (b : injected) = inj @@ Disj Std.(a % (b % nil ()))
+  let disj a b = inj @@ Disj Std.(a % (b % nil ()))
+  let disj_list xs : injected = inj @@ Disj (Std.list Fun.id xs)
+  let not a = inj @@ Not a
 
   module PPNew = struct
     let pp_algebra pp_self pp_list pp_binop pp_term =
@@ -521,15 +502,12 @@ module Ph = struct
                 pp_self pp_list pp_binop pp_term
                 (fun _ _ -> failwith "should not be called")
 
-            method c_Not ppf _ f = Format.fprintf ppf "(not %a)" pp_self f
+            method! c_Not ppf _ f = Format.fprintf ppf "(not %a)" pp_self f
+            method! c_True ppf _ = Format.fprintf ppf "T"
+            method! c_Conj ppf _ xs = Format.fprintf ppf "(and %a)" pp_list xs
+            method! c_Disj ppf _ xs = Format.fprintf ppf "(or %a)" pp_list xs
 
-            method c_True ppf _ = Format.fprintf ppf "T"
-
-            method c_Conj ppf _ xs = Format.fprintf ppf "(and %a)" pp_list xs
-
-            method c_Disj ppf _ xs = Format.fprintf ppf "(or %a)" pp_list xs
-
-            method c_Op ppf _ op l r =
+            method! c_Op ppf _ op l r =
               Format.fprintf ppf "(%a %a %a)" pp_binop op pp_term l pp_term r
           end)
 
@@ -540,9 +518,7 @@ module Ph = struct
             (fun _ ->
               object
                 inherit [_, _, _, _, _, _] OCanren.logic_t
-
                 method c_Var _ _ _ _ = false
-
                 method c_Value _ _ tl = on_slice () tl
               end)
             ()
@@ -551,9 +527,7 @@ module Ph = struct
             (fun fself ->
               object
                 inherit [_, _, _, _, _, _, _, _, _] OCanren.Std.List.t_t
-
                 method c_Nil () _ = true
-
                 method c_Cons () _ _h tl = onlogic () tl
                 (* match tl with Var _ -> false | Value xs -> fself () xs *)
               end)
@@ -566,7 +540,6 @@ module Ph = struct
           (GT.transform OCanren.Std.List.t (fun fself ->
                object
                  inherit [_, _, _, _, _, _, _, _, _] OCanren.Std.List.t_t
-
                  method c_Nil _ _ = ()
 
                  method c_Cons ppf _ h tl =
@@ -579,7 +552,6 @@ module Ph = struct
           (GT.transform OCanren.Std.List.t (fun fself ->
                object
                  inherit [_, _, _, _, _, _, _, _, _] OCanren.Std.List.t_t
-
                  method c_Nil _ _ = ()
 
                  method c_Cons ppf _ h tl =
@@ -590,7 +562,7 @@ module Ph = struct
       (if is_ground_style then pp_style_ground else pp_style_logic) ppf lst
 
     let my_pp_binop ppf = function
-      | Eq -> Format.fprintf ppf "="
+      | Binop.Eq -> Format.fprintf ppf "="
       | Lt -> Format.fprintf ppf "<"
       | Le -> Format.fprintf ppf "<="
 
@@ -636,15 +608,13 @@ module Ph = struct
       GT.plugins =
         object
           method show = GT.show ground
-
           method fmt = pp_ground
-
           method gmap = GT.gmap ground
         end;
     }
 
   let ground_of_logic_exn : logic -> ground =
-    let rec helper =
+    let helper =
       forget_var
         (GT.transform t
            (fun fself ->
@@ -660,8 +630,8 @@ module Ph = struct
                    logic OCanren.Std.List.logic,
                    ground OCanren.Std.List.ground,
                    _,
-                   binop OCanren.logic,
-                   binop,
+                   Binop.logic,
+                   Binop.ground,
                    _,
                    T.logic,
                    T.ground,
@@ -671,7 +641,6 @@ module Ph = struct
                  t_t
 
                method c_True () _ = True
-
                method c_Not _ _ f : ground = Not (forget_var (fself ()) f)
 
                method c_Op () _ op l r =
@@ -739,8 +708,10 @@ module Ph = struct
     OCanren.(run q)
       (fun _ ->
         OCanren.structural (Std.Pair.pair a b) (Std.Pair.reify reify reify)
-            (function Value ((a : logic), b) ->
-            (match GT.compare logic a b with GT.LT -> true | _ -> false)))
+          (function
+          | Value ((a : logic), b) -> (
+              match GT.compare logic a b with GT.LT -> true | _ -> false)
+          | Var _ -> failwith "not impelemnted"))
       (fun rr -> rr#reify OCanren.reify)
     |> fun s -> if Stream.is_empty s then GT.GT else GT.LT
 
@@ -789,10 +760,10 @@ module Env = struct
   open OCanren
 
   type ground = (string * T.ground) Std.List.ground
-
   type logic = (string OCanren.logic * T.logic) OCanren.logic Std.List.logic
 
-  type injected = (ground, logic) OCanren.injected
+  type injected =
+    (string OCanren.ilogic * T.injected) OCanren.ilogic Std.List.injected
 
   let reify env : injected -> logic =
     Std.List.reify (Std.Pair.reify OCanren.reify T.reify) env
@@ -801,9 +772,7 @@ module Env = struct
     OCanren.Std.List.of_list (fun (a, b) -> (a, T.Const b))
 
   let empty : injected = Std.nil ()
-
   let cons name t : injected -> injected = Std.List.cons (Std.Pair.pair name t)
-
   let conso name t (tail : injected) (env : injected) = env === cons name t tail
 
   (* let rec lookupo name (env : injected) rez =
@@ -847,41 +816,28 @@ let mk_of_term (module BV : Bv.S) =
     open OCanren
 
     type t = T.injected
-
     type rez = t
 
     let finish = Fun.id
-
     let var s : t = T.var !!s
-
     let const n = T.const (BV.build_num n)
-
     let const_s s : t = T.const (BV.build_num @@ int_of_string s)
-
     let const_int n = T.const (BV.build_num n)
-
     let land_ = T.land_
-
     let lor_ = T.lor_
-
     let shl = T.shl
-
     let lshr = T.lshr
-
     let add = T.add
-
     let sub = T.sub
-
     let mul = T.mul
   end in
   (module Ans : Algebra.TERM with type t = T.injected)
 
 let mk_of_formula =
   let module P = struct
-    open Z3
+    (* open Z3 *)
 
     type rez = Ph.injected
-
     type t = Conjs of rez list | Disjs of rez list | Final of rez
 
     let finish = function
@@ -893,7 +849,8 @@ let mk_of_formula =
 
     let true_ = Final Ph.true_
 
-    let iff a b = failwiths "not implemented %s %d" __FILE__ __LINE__
+    let iff a b =
+      failwiths ~here:[%here] "not implemented %s %d" __FILE__ __LINE__
 
     let not f = Final (Ph.not (finish f))
 
@@ -918,9 +875,7 @@ let mk_of_formula =
       | _, _ -> Final (Ph.disj2 (finish x) (finish y))
 
     let eq x y = Final (Ph.eq x y)
-
     let le x y = Final (Ph.le x y)
-
     let lt x y = Final (Ph.lt x y)
 
     let forall name f =
@@ -928,7 +883,7 @@ let mk_of_formula =
       f
 
     let exists name f =
-      failwiths "exists is not supported\n%s %d" __FILE__ __LINE__;
+      let _ = failwiths ~here:[%here] "exists is not supported" in
       f
   end in
   (module P : Algebra.FORMULA

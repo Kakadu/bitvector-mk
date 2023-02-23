@@ -4,7 +4,6 @@ open OCanren
 open OCanren.Std
 
 [%%define TRACE]
-
 [%%undef TRACE]
 
 type cmp_t = LT | EQ | GT [@@deriving gt ~options:{ show }]
@@ -13,9 +12,7 @@ let int_pow base width = int_of_float (float_of_int base ** float_of_int width)
 
 module Repr = struct
   type e = int
-
   type g = e OCanren.Std.List.ground
-
   type l = e logic OCanren.Std.List.logic
 
   (* It seems we can't hide these types because
@@ -23,19 +20,18 @@ module Repr = struct
      as _ logic in the second type parameter
   *)
 
-  type n = (g, l) OCanren.injected
-
-  type injected = n
+  type injected = e OCanren.ilogic OCanren.Std.List.injected
+  type n = injected
 
   let inj g = GT.foldl Std.List.ground (fun acc x -> !!x % acc) (Std.nil ()) g
-
   let reify = List.reify OCanren.reify
+  let prj_exn = List.prj_exn OCanren.prj_exn
 
-  let prjc_exn env : injected -> g =
-    List.prjc
-      (OCanren.prjc (fun _ _ -> failwith "should not happen"))
-      (fun _ _ -> failwith "should not happen")
-      env
+  (* let prjc_exn env : injected -> g =
+     List.prjc
+       (OCanren.prjc (fun _ _ -> failwith "should not happen"))
+       (fun _ _ -> failwith "should not happen")
+       env *)
 
   let ground_of_logic_exn : l -> g =
     let rec on_logic l =
@@ -43,7 +39,6 @@ module Repr = struct
         (fun _ ->
           object
             method c_Value () _ x = on_list x
-
             method c_Var () _ _ = failwith "free variables"
           end)
         () l
@@ -52,7 +47,6 @@ module Repr = struct
         (fun _ ->
           object
             method c_Nil () _ = OCanren.Std.List.Nil
-
             method c_Cons () _ h tl = OCanren.Std.List.Cons (on_e h, on_logic tl)
           end)
         () lst
@@ -61,7 +55,6 @@ module Repr = struct
         (fun _ ->
           object
             method c_Value () _ x = x
-
             method c_Var () _ _ = failwith "free variables"
           end)
         () e
@@ -69,9 +62,7 @@ module Repr = struct
     on_logic
 
   let show xs = GT.(show List.ground @@ show int) xs
-
   let pp_logic = GT.(fmt List.logic @@ fmt logic @@ fmt int)
-
   let show_logic = Format.asprintf "%a" pp_logic
 
   let pp_binary ppf (xs : g) =
@@ -104,10 +95,9 @@ module Repr = struct
       GT.plugins =
         object
           method show = show
-
           method gmap = Fun.id
-
           method fmt ppf x = Format.fprintf ppf "%s" (show x)
+          method foldl acc _ = acc
 
           method compare : g -> g -> GT.comparison =
             GT.compare Std.List.ground (GT.compare GT.int)
@@ -126,9 +116,7 @@ module Repr = struct
       GT.plugins =
         object
           method show = show_logic
-
           method gmap = Fun.id
-
           method fmt ppf x = Format.fprintf ppf "%s" (show_logic x)
 
           method foldl =
@@ -167,15 +155,10 @@ module type S = sig
   open OCanren
 
   val show_binary : g -> string
-
   val build_num : int -> n
-
   val of_int : int -> g
-
-  val mod2 : n -> (e, e logic) injected -> goal
-
+  val mod2 : n -> e ilogic -> goal
   val mul2 : n -> n -> goal
-
   val addo : n -> n -> n -> goal
   (*
   val gen_addero : int -> (int, int logic) OCanren.injected ->
@@ -186,37 +169,21 @@ module type S = sig
  *)
 
   val subo : n -> n -> n -> goal
-
   val multo : n -> n -> n -> goal
-
   val shiftl1 : n -> n -> goal
-
   val lshiftr1 : n -> n -> goal
-
   val ashiftr1 : n -> n -> goal
-
   val ashiftro : n -> n -> n -> goal
-
   val lshiftro : n -> n -> n -> goal
-
   val shiftlo : n -> n -> n -> goal
-
   val rotl : n -> n -> goal
-
   val rotr : n -> n -> goal
-
   val loro : n -> n -> n -> goal
-
   val lando : n -> n -> n -> goal
-
   val lto : n -> n -> goal
-
   val leo : n -> n -> goal
-
-  val compare_helper : n -> n -> (cmp_t, cmp_t logic) OCanren.injected -> goal
-
+  val compare_helper : n -> n -> cmp_t ilogic -> goal
   val forallo : n -> (n -> goal) -> goal
-
   val width : int
 end
 
@@ -226,7 +193,6 @@ let create width : (module S) =
     include Repr
 
     let width = width
-
     let count = int_pow 2 width
 
     let of_int n : g =
@@ -309,7 +275,6 @@ let create width : (module S) =
         helper (List.nil ()) len
 
       let zero = list_inito width !!0
-
       let one = Std.List.( % ) !!1 (list_inito (width - 1) !!0)
 
       (* Zero is empty list or a list of all zeros *)
@@ -371,23 +336,18 @@ let create width : (module S) =
 
       (* zero is an empty list *)
       let zero : n = nil ()
-
       let is_zero n = n === zero
 
       (* one is a singleton list of 1 *)
       let one = !<(!!1)
-
       let is_one q = fresh tl (Std.List.cons !!1 tl === q) (is_zero tl)
-
       let poso q = fresh (h t) (q === h % t)
-
       let gt1o q = fresh (h t tt) (q === h % (t % tt))
     end
 
     include New
 
     let ( ! ) = ( !! )
-
     let mod2 n min = fresh tl (n === min % tl)
 
     let mul2 x _2x =
@@ -495,13 +455,9 @@ let create width : (module S) =
 
     module Sizes = struct
       let has_ones_inside = has_ones_inside
-
       let poso = looks_like_poso
-
       let gt1o = looks_like_gt1o
-
       let zero = looks_like_zero
-
       let is_one = looks_like_one
 
       let check_width =
@@ -556,7 +512,6 @@ let create width : (module S) =
         has_ones_inside n
 
       let gt0 = poso
-
       let gt1 n = fresh (temp tl) (n === temp % tl) (gt0 tl)
 
       let normalize =
@@ -706,9 +661,7 @@ let create width : (module S) =
         (helper width ~shiftedm:m n nm)
 
     let division n m q r = fresh t1 (multo m q t1) (addo t1 r n)
-
     let div n m q = division n m q zero
-
     let mod_ n m r = division n m one r
 
     (*
@@ -803,13 +756,9 @@ let create width : (module S) =
         ]
 
     let compare_helper = compare_helper0 width
-
     let leo a b = fresh rez (rez =/= !!GT) (compare_helper a b rez)
-
     let lto a b = fresh rez (rez === !!LT) (compare_helper a b rez)
-
     let gto a b = lto b a
-
     let geo a b = leo b a
 
     let lando =

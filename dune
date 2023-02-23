@@ -3,32 +3,71 @@
   (flags
    (:standard -warn-error +5-33-27 -w -3-9-27-26-32))))
 
-
-
 (library
  (name impl)
  (modules Types EvalPh0 Algebra)
- (flags (-rectypes))
+ (flags
+  (:standard -rectypes))
  (libraries OCanren OCanren.tester bv z3)
  (inline_tests)
  (wrapped false)
  (preprocess
-  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl GT.syntax.compare ppx_inline_test ppx_fail)))
+  (pps
+   ppx_optcomp
+   ppx_here
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh
+   OCanren-ppx.ppx_distrib
+   GT.ppx
+   GT.syntax.show
+   GT.syntax.fmt
+   GT.syntax.map
+   GT.syntax.foldl
+   GT.syntax.compare
+   ppx_inline_test
+   ;ppx_fail
+   )))
 
 (executable
  (name ph_test)
  (modules ph_test)
- (flags (-rectypes))
+ (flags
+  (:standard -rectypes))
  (libraries impl)
  (preprocess
-  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl ppx_fail )))
-
-
+  (pps
+   ppx_optcomp
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh
+   OCanren-ppx.ppx_distrib
+   GT.ppx
+   GT.syntax.show
+   GT.syntax.fmt
+   GT.syntax.map
+   GT.syntax.foldl
+   ppx_fail)))
 
 (executable
  (name main)
  (modules main)
- (flags (:standard -rectypes))
+ (flags
+  (:standard -rectypes))
  (libraries OCanren z3 res impl bv mytester)
  (preprocess
-  (pps ppx_optcomp OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx GT.syntax.show GT.syntax.fmt GT.syntax.map GT.syntax.foldl ppx_fail )))
+  (pps
+   ppx_optcomp
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh
+   GT.ppx_all
+   ;
+   )))
+
+(library
+ (name mytester)
+ (modules mytester)
+ (preprocess
+  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh ppx_expect))
+ (flags
+  (:standard -rectypes))
+ (inline_tests)
+ (libraries mtime.clock.os OCanren))
