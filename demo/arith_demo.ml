@@ -8,11 +8,10 @@ module M = struct
 end
 
 let show = GT.(show List.ground @@ show int)
-
 let show_logic = GT.(show List.logic @@ show logic @@ show int)
 
 let __ _freeVars =
-  let runL n = runR M.reify show show_logic n in
+  let runL n = run_r M.reify show_logic n in
 
   (* runL 5 qrs qrsh (REPR (fun q r s -> pluso q r s )); *)
   (* runL (-1) qr qrh (REPR (fun q r -> pluso q r (build_num 7))); *)
@@ -32,7 +31,7 @@ let _freeVars =
 *)
 
 let __ _freeVars =
-  let runL n = runR M.reify show show_logic n in
+  let runL n = run_r M.reify show_logic n in
 
   (* runL 1 q qh (REPR (fun q -> q === build_num 1));
      runL 1 q qh (REPR (fun q -> q === build_num 2));
@@ -47,7 +46,7 @@ let __ _freeVars =
   ()
 
 let __ _freeVars =
-  let runL n = runR M.reify show show_logic n in
+  let runL n = run_r M.reify show_logic n in
 
   (*
   runL 1 q qh (REPR (fun q -> q === build_num 1));
