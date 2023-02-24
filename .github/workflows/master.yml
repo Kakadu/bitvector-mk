@@ -31,6 +31,6 @@ jobs:
       - run: git submodule update --init
       - run: opam pin add ./OCanren --no-action --yes
       - run: opam pin . --yes --no-action
-      - run: opam install BitvectorMK --yes --deps-only --with-test
+      - run: opam install bitvector-mk --yes --deps-only --with-test
       - run: opam exec -- dune build
       - run: opam exec -- dune runtest
