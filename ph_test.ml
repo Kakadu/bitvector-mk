@@ -14,15 +14,13 @@ let trace_bv n fmt =
 
 let __ =
   let (module BV) = Bv.create 4 in
-  let runBV =
-    Tester.runR Bv.Repr.reify (GT.show Bv.Repr.g) (GT.show Bv.Repr.l)
-  in
-  let runF = Tester.runR Ph.reify (GT.show Ph.ground) (GT.show Ph.logic) in
-  let runS = Tester.run_exn (GT.show GT.string) in
-  let runT = Tester.runR T.reify (GT.show T.ground) (GT.show T.logic) in
-  let evalo = EvalPh0.evalo (module BV) in
+  let runBV = Tester.run_r Bv.Repr.reify (GT.show Bv.Repr.l) in
+  let runF = Tester.run_r Ph.reify (GT.show Ph.logic) in
+  let runS = Tester.run_r OCanren.prj_exn (GT.show GT.string) in
+  let runT = Tester.run_r T.reify (GT.show T.logic) in
+  let evalo = EvalPh0.evalo_helper (module BV) in
   let _ = runT in
-  let _ = runR in
+  (* let _ = runR in *)
   let _ = runS in
   let _ = runBV in
   let _ = evalo in
@@ -85,28 +83,26 @@ let __ =
   (* runBV 15 q qh (REPR (fun q -> BV.addo (BV.build_num 1) (BV.build_num 1) q)); *)
 
   (* runBV 15 q qh (REPR (fun q -> q === BV.build_num 1)); *)
-  runF 30 q qh
-    (REPR
-       (fun f ->
-         fresh (v1 v2 env)
-           (env === Env.cons !!"x" v1 (Env.cons !!"y" v2 Env.empty))
-           (forallo (fun q -> EvalPh0.evalo (module BV) env f))));
+  (* runF 30 q qh
+     (REPR
+        (fun f ->
+          fresh (v1 v2 env)
+            (env === Env.cons !!"x" v1 (Env.cons !!"y" v2 Env.empty))
+            (forallo (fun q -> EvalPh0.evalo_helper (module BV) env f)))); *)
 
   (* runBV (-1) qr qrh (REPR (fun q r -> BV.leo q r)); *)
   ()
 
 let __ () =
   let (module BV) = Bv.create 4 in
-  let runBV =
-    Tester.runR Bv.Repr.reify (GT.show Bv.Repr.g) (GT.show Bv.Repr.l)
-  in
-  let runF = Tester.runR Ph.reify (GT.show Ph.ground) (GT.show Ph.logic) in
-  let runS = Tester.run_exn (GT.show GT.string) in
-  let runT = Tester.runR T.reify (GT.show T.ground) (GT.show T.logic) in
-  let evalo = EvalPh0.evalo (module BV) in
+  let runBV = Tester.run_r Bv.Repr.reify (GT.show Bv.Repr.l) in
+  let runF = Tester.run_r Ph.reify (GT.show Ph.logic) in
+  let runS = Tester.run_r OCanren.prj_exn (GT.show GT.string) in
+  let runT = Tester.run_r T.reify (GT.show T.logic) in
+  let evalo = EvalPh0.evalo_helper (module BV) in
   let _ = runT in
   let _ = runF in
-  let _ = runR in
+  (* let _ = runR in *)
   let _ = runS in
   let _ = runBV in
   let _ = evalo in
@@ -121,22 +117,22 @@ let __ () =
     match OCanren.Stream.take ~n:2 ss with [ x ] -> true | _ -> false
   in
 
-  let ph =
-    let (module I : Algebra.INPUT) = Algebra.ex4 in
-    let (module T), (module P) = Types.to_mk (module BV) in
-    let module MkEncoded = I (T) (P) in
-    Option.get MkEncoded.answer
-  in
+  let (module I : Algebra.INPUT) = Algebra.ex4 in
+  let (module T), (module P) = Types.to_mk (module BV) in
+  let module MkEncoded = I (T) (P) in
+  let ph = Option.get MkEncoded.answer in
 
   let count = Bv.int_pow 2 BV.width - 1 in
   for i = 1 to count - 1 do
     for j = 1 to count - 1 do
       let myenv =
-        Env.cons !!"x" (T.const @@ BV.build_num i)
-        @@ Env.cons !!"y" (T.const @@ BV.build_num j) Env.empty
+        Env.cons !!"x" (T.const_int i)
+        @@ Env.cons !!"y" (T.const_int j) Env.empty
       in
       let s =
-        OCanren.(run q) (fun _ -> EvalPh0.evalo (module BV) myenv ph) Fun.id
+        OCanren.(run q)
+          (fun _ -> EvalPh0.evalo_helper (module BV) myenv (P.finish ph) !!true)
+          Fun.id
       in
       if not (_stream_is_singleton s) then
         Format.eprintf "no answer for i=%d, j=%d\n%!" i j
@@ -147,56 +143,45 @@ let __ () =
 
 let __ () =
   let (module BV) = Bv.create 4 in
-  let runBV =
-    Tester.runR Bv.Repr.reify (GT.show Bv.Repr.g) (GT.show Bv.Repr.l)
-  in
-  let runF = Tester.runR Ph.reify (GT.show Ph.ground) (GT.show Ph.logic) in
-  let runS = Tester.run_exn (GT.show GT.string) in
-  let runT = Tester.runR T.reify (GT.show T.ground) (GT.show T.logic) in
-  let evalo = EvalPh0.evalo (module BV) in
+  let runBV = Tester.run_r Bv.Repr.reify (GT.show Bv.Repr.l) in
+
+  let runS = Tester.run_r OCanren.prj_exn (GT.show GT.string) in
+  let runT = Tester.run_r T.reify (GT.show T.logic) in
+  let evalo = EvalPh0.evalo_helper (module BV) in
   let _ = runT in
-  let _ = runF in
-  let _ = runR in
+
   let _ = runS in
   let _ = runBV in
   let _ = evalo in
 
   let module Term = struct
-    type t = Bv.Repr.g
-
+    (* type t = Bv.Repr.g *)
     type ground = Bv.Repr.g
+    type injected = Bv.Repr.injected
 
     let ground = Bv.Repr.g
 
     type logic = Bv.Repr.l
 
     let logic = Bv.Repr.l
-
     let reify = Bv.Repr.reify
+    let prj_exn = Bv.Repr.prj_exn
   end in
   let module Ph = struct
-    type 'a t = Op of 'a * 'a [@@deriving gt ~options:{ show }]
+    [@@@ocaml.warning "-34"]
 
-    type ground = Term.ground t [@@deriving gt ~options:{ show }]
+    [%%ocanren
+    type nonrec 'a t = Op of 'a * 'a [@@deriving gt ~options:{ show; gmap }]
+    type ground = Term.ground t]
 
-    type logic = Term.logic t OCanren.logic [@@deriving gt ~options:{ show }]
-
-    module Ops = Fmap (struct
-      type nonrec 'a t = 'a t
-
-      let fmap f (Op (x, y)) = Op (f x, f y)
-    end)
-
-    let op l r = inj @@ Ops.distrib (Op (l, r))
-
-    let reify env = Ops.reify Term.reify env
+    let op l r = inj @@ Op (l, r)
   end in
-  let termo t1 t2 =
+  let termo (t1 : Term.injected) t2 =
     fresh () (t1 === t2)
       (conde
          [ t1 === BV.build_num 1; t1 === BV.build_num 2; t1 === BV.build_num 3 ])
   in
-  let rec pho ph rez =
+  let pho ph rez =
     fresh (l r l2 r2)
       (ph === Ph.op l r)
       (termo l l2)
@@ -205,7 +190,7 @@ let __ () =
       (* (trace_bv r "r=") *)
       (BV.compare_helper l2 r2 rez)
   in
-  let runF = Tester.runR Ph.reify (GT.show Ph.ground) (GT.show Ph.logic) in
+  let runF = Tester.run_r Ph.reify (GT.show Ph.logic) in
   runF (-1) q qh (REPR (fun q -> pho q !!Bv.LT));
   runF (-1) q qh (REPR (fun q -> pho q !!Bv.EQ));
   runF (-1) q qh (REPR (fun q -> pho q !!Bv.GT));

@@ -2,6 +2,13 @@
 opam-version: "2.0"
 depends: [
   "dune" {>= "3.6"}
+  "ctypes-foreign"
+  "z3"
+  "ppx_fail"
+  "GT"
+  "ppx_inline_test"
+  "ppx_expect"
+  "OCanren"
   "odoc" {with-doc}
 ]
 build: [

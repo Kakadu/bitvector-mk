@@ -2,7 +2,6 @@
  *
  *)
 
-open Printf
 open OCanren
 open OCanren.Std
 open Tester
@@ -134,10 +133,7 @@ let rec ltlo n m =
     ]
 
 let lelo n m = conde [ eqlo n m; ltlo n m ]
-
-let rec lto n m =
-  conde [ ltlo n m; ?&[ eqlo n m; fresh x (poso x) (pluso n x m) ] ]
-
+let lto n m = conde [ ltlo n m; ?&[ eqlo n m; fresh x (poso x) (pluso n x m) ] ]
 let leo n m = conde [ n === m; lto n m ]
 
 let rec splito n r l h =
@@ -225,7 +221,7 @@ let rec exp2 n b q =
         (exp2 nh b2 q1);
     ]
 
-let rec logo n b q r =
+let logo n b q r =
   conde
     [
       !<(!1) === n &&& poso b &&& (nil () === q) &&& (nil () === r);

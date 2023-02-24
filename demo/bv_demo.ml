@@ -7,7 +7,7 @@ open Bv.Repr
 let __ _freeVars =
   let (module M) = create 2 in
   let open M in
-  let runL n = runR reify show show_logic n in
+  let runL n = run_r reify show_logic n in
 
   (* runL 5 qrs qrsh (REPR (fun q r s -> addo q r s )); *)
   (* runL (-1) qr qrh (REPR (fun q r -> addo q r (build_num 7))); *)
@@ -29,7 +29,7 @@ let _freeVars =
 let __ _freeVars =
   let (module M) = create 2 in
   let open M in
-  let runL n = runR reify show show_logic n in
+  let runL n = run_r reify show_logic n in
 
   (* runL 1 q qh (REPR (fun q -> q === build_num 1));
      runL 1 q qh (REPR (fun q -> q === build_num 2));
@@ -46,7 +46,7 @@ let __ _freeVars =
 let __ _freeVars =
   let (module M) = create 3 in
   let open M in
-  let runL n = runR reify show show_logic n in
+  let runL n = run_r reify show_logic n in
 
   (*
   runL 1 q qh (REPR (fun q -> q === build_num 1));
@@ -63,7 +63,7 @@ let __ _freeVars =
 let __ _shifts =
   let (module M) = create 4 in
   let open M in
-  let runL n = runR reify show show_logic n in
+  let runL n = run_r reify show_logic n in
 
   runL 5 q qh (REPR (fun q -> shiftl1 (build_num 5) q));
   runL 5 q qh (REPR (fun q -> shiftl1 (build_num 10) q));
@@ -79,7 +79,7 @@ let __ _shifts =
 let __ _mults =
   let (module M) = create 2 in
   let open M in
-  let runL n = runR reify show_binary show_logic n in
+  let runL n = run_r reify show_logic n in
 
   (* runL 5 q qh (REPR (fun q -> multo (build_num 2) (build_num 2) q)); *)
   (* runL 5 q qh (REPR (fun q -> multo (build_num 2) (build_num 0) q)); *)
@@ -97,7 +97,7 @@ let __ _mults =
 let _shifts =
   let (module M) = create 4 in
   let open M in
-  let runL n = runR reify show_binary show_logic n in
+  let runL n = run_r reify show_logic n in
 
   runL (-1) qr qrh (REPR (shiftlo (build_num 1)));
 
@@ -125,7 +125,7 @@ let _shifts =
 let __ _shifts =
   let (module M) = create 4 in
   let open M in
-  let runL n = runR reify show_binary show_logic n in
+  let runL n = run_r reify show_logic n in
 
   runL (-1) qr qrh
     (REPR

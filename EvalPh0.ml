@@ -63,7 +63,7 @@ let trace_int n fmt =
           success
       | _ -> assert false)
 
-let evalo_helper bv_impl : Env.injected -> Ph.injected -> _ -> goal =
+let evalo_helper bv_impl : Env.injected -> Ph.injected -> bool ilogic -> goal =
   let (module BV : Bv.S) = bv_impl in
   let cut_bad_syntax op ph =
     (* no conjunction inside conjunction and no disjunction inside disjunction *)

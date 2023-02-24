@@ -5,4 +5,14 @@
 (name BitvectorMK)
 
 (package
- (name BitvectorMK))
+ (name BitvectorMK)
+ (depends
+  ctypes-foreign
+  z3
+  ppx_fail
+  GT
+  ppx_inline_test
+  ppx_expect
+  OCanren
+  ;
+  ))

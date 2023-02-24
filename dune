@@ -3,6 +3,8 @@
   (flags
    (:standard -warn-error +5-33-27 -w -3-9-27-26-32))))
 
+(dirs :standard \ boolector)
+
 (library
  (name impl)
  (modules Types EvalPh0 Algebra)

@@ -1,6 +1,6 @@
 (library
  (name boolector_ml)
+ ;(package Boolector_ml)
  (libraries ctypes ctypes.foreign)
  (modules boolector_ml)
- (wrapped false)
-)
+ (wrapped false))
