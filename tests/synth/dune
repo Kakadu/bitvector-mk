@@ -1,0 +1,13 @@
+(env
+ (dev
+  (flags
+   (:standard -rectypes))))
+
+(executables
+ (names test1 test3)
+ (libraries synth)
+ (preprocess
+  (pps OCanren-ppx.ppx_fresh)))
+
+(cram
+ (deps test1.exe test3.exe))

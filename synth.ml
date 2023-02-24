@@ -125,7 +125,7 @@ let rec list_take n = function
   | h :: tl -> h :: list_take (n - 1) tl
   | [] -> []
 
-let test (evalo : (module Bv.S) -> _) m =
+let test bv_size (evalo : (module Bv.S) -> _) m =
   let ctx = Z3.mk_context [] in
   let solver = Z3.Solver.mk_simple_solver ctx in
 
@@ -139,7 +139,6 @@ let test (evalo : (module Bv.S) -> _) m =
     (run, count)
   in
 
-  let bv_size = 2 in
   let (module T), (module P) = Algebra.to_z3 bv_size ctx in
   let (module I : Algebra.INPUT) = m in
   let module Z3Encoded = I (T) (P) in
@@ -239,12 +238,26 @@ let test (evalo : (module Bv.S) -> _) m =
               let wrap n =
                 Std.List.Cons ((name, Types.T.Const (BV.of_int n)), acc)
               in
-              match estr with
-              | "#b00" -> wrap 0
-              | "#b01" -> wrap 1
-              | "#b10" -> wrap 2
-              | "#b11" -> wrap 3
-              | estr -> Scanf.sscanf estr "#x%X" wrap
+              let scanf_bin s =
+                if s.[0] = '#' && s.[1] = 'b' then
+                  let len = String.length s in
+                  let rec loop acc i =
+                    if i >= len then acc
+                    else if s.[i] = '0' then loop (acc * 2) (i + 1)
+                    else if s.[i] = '1' then loop ((acc * 2) + 1) (i + 1)
+                    else assert false
+                  in
+                  loop 0 2
+                else failwith "Bad argument"
+              in
+              if String.starts_with ~prefix:"#b" estr then wrap (scanf_bin estr)
+              else
+                match estr with
+                (* | "#b00" -> wrap 0
+                   | "#b01" -> wrap 1
+                   | "#b10" -> wrap 2
+                   | "#b11" -> wrap 3 *)
+                | estr -> Scanf.sscanf estr "#x%X" wrap
             with Scanf.Scan_failure s as e ->
               Format.eprintf "Error while parsing a string '%s'\n%!" estr;
               raise e)
@@ -426,4 +439,4 @@ let test (evalo : (module Bv.S) -> _) m =
   in
   run_r Ph.reify on_logic (Options.max options) q qh ("", goal)
 
-let () = test EvalPh0.evalo_helper Algebra.ex4
+(* let () = test EvalPh0.evalo_helper Algebra.ex4 *)

@@ -40,11 +40,11 @@
    GT.ppx_all
    ppx_fail)))
 
-(executable
- (name main)
- (public_name main)
- (package bitvector-mk)
- (modules main)
+(library
+ (name synth)
+ ; (package bitvector-mk)
+ (modules synth)
+ (wrapped false)
  (flags
   (:standard -rectypes))
  (libraries OCanren z3 res impl bv mytester)
