@@ -28,6 +28,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - run: sudo apt install libffi-dev -y
+
       - run: git submodule update --init
       - run: opam pin add ./OCanren --no-action --yes
       - run: opam pin add bitvector-mk . --yes --no-action
