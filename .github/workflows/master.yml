@@ -1,0 +1,35 @@
+name: Build master
+
+on:
+  push:
+    branches:
+      - 'master'
+
+jobs:
+  build:
+    env:
+      OPAMROOT: /home/user/.opam
+      OPAMYES: true
+
+    runs-on: ubuntu-22.04
+    container:
+      image: kakadu18/ocaml:pltlab
+      options: --user user
+
+    steps:
+      - run: opam --version
+      - run: opam exec -- ocamlopt --version
+
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.11.0
+        with:
+          access_token: ${{ github.token }}
+
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - run: git submodule update --init
+      - run: opam pin . --yes --no-action
+      - run: opam install BitvectorMK --yes --deps-only --with-test
+      - run: opam exec -- dune build
+      - run: opam exec -- dune runtest
