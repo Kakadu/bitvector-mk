@@ -1,11 +1,11 @@
-(lang dune 3.6)
+(lang dune 3.5)
 
 (generate_opam_files true)
 
-(name BitvectorMK)
+(name bitvector-mk)
 
 (package
- (name BitvectorMK)
+ (name bitvector-mk)
  (depends
   ctypes-foreign
   z3

@@ -43,7 +43,7 @@
 (executable
  (name main)
  (public_name main)
- (package BitvectorMK)
+ (package bitvector-mk)
  (modules main)
  (flags
   (:standard -rectypes))
