@@ -10,6 +10,7 @@
   ctypes-foreign
   z3
   ppx_fail
+  res
   GT
   ppx_inline_test
   ppx_expect
