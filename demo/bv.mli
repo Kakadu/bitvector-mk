@@ -3,8 +3,6 @@ type cmp_t = LT | EQ | GT [@@deriving gt ~options:{ show }]
 val int_pow : int -> int -> int
 
 module Repr : sig
-  open OCanren
-
   type e = int
   type g = e OCanren.Std.List.ground
   type l = e OCanren.logic OCanren.Std.List.logic

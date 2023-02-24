@@ -1,5 +1,3 @@
-open Printf
-open Tester
 open OCanren
 open OCanren.Std
 

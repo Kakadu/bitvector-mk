@@ -327,7 +327,7 @@ let ex6 =
     let ph =
       let x = T.var "x" in
       let y = T.var "y" in
-      let head = P.(forall "x" T.(x == x)) in
+      let head = P.(forall "x" (x == x)) in
       let tail = P.(T.(x + x + x + x + x > y + y)) in
       P.(head && tail)
 
@@ -346,7 +346,7 @@ let ex7 =
     let ph =
       let x = T.var "x" in
       let y = T.var "y" in
-      let head = P.(forall "x" T.(x == x)) in
+      let head = P.(forall "x" (x == x)) in
       let tail = P.(T.(x + x + x + x == y)) in
       P.(head && tail)
 
