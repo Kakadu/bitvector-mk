@@ -1,3 +1,8 @@
-(lang dune 1.11)
+(lang dune 3.6)
 
-;(allow_approximate_merlin)
+(generate_opam_files true)
+
+(name BitvectorMK)
+
+(package
+ (name BitvectorMK))

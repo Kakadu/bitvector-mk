@@ -18,14 +18,9 @@
    OCanren-ppx.ppx_repr
    OCanren-ppx.ppx_fresh
    OCanren-ppx.ppx_distrib
-   GT.ppx
-   GT.syntax.show
-   GT.syntax.fmt
-   GT.syntax.map
-   GT.syntax.foldl
-   GT.syntax.compare
+   GT.ppx_all
    ppx_inline_test
-   ;ppx_fail
+   ;
    )))
 
 (executable
@@ -40,15 +35,13 @@
    OCanren-ppx.ppx_repr
    OCanren-ppx.ppx_fresh
    OCanren-ppx.ppx_distrib
-   GT.ppx
-   GT.syntax.show
-   GT.syntax.fmt
-   GT.syntax.map
-   GT.syntax.foldl
+   GT.ppx_all
    ppx_fail)))
 
 (executable
  (name main)
+ (public_name main)
+ (package BitvectorMK)
  (modules main)
  (flags
   (:standard -rectypes))

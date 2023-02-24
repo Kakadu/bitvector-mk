@@ -119,12 +119,12 @@ let trace_new_example _ _ _ = ()
 
 [%%endif]
 
-(*
-let (_ : float -> int) =
-  let on_logic ~span:_ x = Format.asprintf "%a" (GT.fmt Ph.logic) x in
-  (* Mytester.(run_r Ph.reify on_logic 1 q qh) *)
-  OCanren.(run q (fun q -> q === Ph.true_) (fun r -> r#reify Ph.reify))
- *)
+let rec list_take n = function
+  | xs when n < 0 -> xs
+  | _ when n = 0 -> []
+  | h :: tl -> h :: list_take (n - 1) tl
+  | [] -> []
+
 let test (evalo : (module Bv.S) -> _) m =
   let ctx = Z3.mk_context [] in
   let solver = Z3.Solver.mk_simple_solver ctx in
@@ -139,7 +139,8 @@ let test (evalo : (module Bv.S) -> _) m =
     (run, count)
   in
 
-  let (module T), (module P) = Algebra.to_z3 ctx in
+  let bv_size = 2 in
+  let (module T), (module P) = Algebra.to_z3 bv_size ctx in
   let (module I : Algebra.INPUT) = m in
   let module Z3Encoded = I (T) (P) in
   Format.printf "%s\n%!" Z3Encoded.info;
@@ -163,8 +164,8 @@ let test (evalo : (module Bv.S) -> _) m =
           (fun q -> q === !!h)
           tl
   in *)
-  let (module F : Algebra.FORMULA_Z3) = Algebra.z3_of_formula ctx in
-  let (module BV) = Bv.create 4 in
+  let (module F : Algebra.FORMULA_Z3) = Algebra.z3_of_formula bv_size ctx in
+  let (module BV) = Bv.create bv_size in
 
   let check_cand candidate =
     let q = F.(not (iff candidate Z3Encoded.ph)) in
@@ -235,8 +236,15 @@ let test (evalo : (module Bv.S) -> _) m =
             let eans = Z3.Model.eval model (T.var name) true |> Option.get in
             let estr = Z3.Expr.to_string eans in
             try
-              Scanf.sscanf estr "#x%X" (fun n ->
-                  Std.List.Cons ((name, Types.T.Const (BV.of_int n)), acc))
+              let wrap n =
+                Std.List.Cons ((name, Types.T.Const (BV.of_int n)), acc)
+              in
+              match estr with
+              | "#b00" -> wrap 0
+              | "#b01" -> wrap 1
+              | "#b10" -> wrap 2
+              | "#b11" -> wrap 3
+              | estr -> Scanf.sscanf estr "#x%X" wrap
             with Scanf.Scan_failure s as e ->
               Format.eprintf "Error while parsing a string '%s'\n%!" estr;
               raise e)
@@ -260,49 +268,80 @@ let test (evalo : (module Bv.S) -> _) m =
     let () =
       let module P = Algebra.EnrichFormula (P) in
       let manual_answers =
-        [ (* [ ("b", 9); ("a", 8) ];  *) [ ("b", 0); ("a", 8) ] ]
+        [ (* [ ("b", 9); ("a", 8) ];  *)
+          (* [ ("b", 0); ("a", 8) ]  *) ]
       in
 
-      List.iter
-        (fun env ->
-          let genv =
-            Types.Env.embed @@ List.map (fun (a, b) -> (a, BV.of_int b)) env
-          in
-          let envf =
-            List.fold_left
-              (fun acc (x, v) -> P.(acc && T.var x == T.const_int v))
-              P.true_ env
-          in
-          let ph0 = P.conj envf Z3Encoded.ph in
-          Format.printf "%s\n%!" (Z3.Expr.to_string ph0);
-          let ans =
-            match run_solver ph0 with
-            | Z3.Solver.UNKNOWN ->
-                failwith "Solver should not return UNKNOWN result"
-            | UNSATISFIABLE -> false
-            | SATISFIABLE ->
-                (* let model = Z3.Solver.get_model solver |> Option.get in
-                   Format.printf "Got a model that should be empty : `%s`\n"
-                     (Z3.Model.to_string model); *)
-                true
-          in
-          MyQueue.enqueue q genv ans)
-        manual_answers
+      manual_answers
+      |> List.iter (fun env ->
+             let genv =
+               Types.Env.embed @@ List.map (fun (a, b) -> (a, BV.of_int b)) env
+             in
+             let envf =
+               List.fold_left
+                 (fun acc (x, v) -> P.(acc && T.var x == T.const_int v))
+                 P.true_ env
+             in
+             let ph0 = P.conj envf Z3Encoded.ph in
+             Format.printf "%s\n%!" (Z3.Expr.to_string ph0);
+             let ans =
+               match run_solver ph0 with
+               | Z3.Solver.UNKNOWN ->
+                   failwith "Solver should not return UNKNOWN result"
+               | UNSATISFIABLE -> false
+               | SATISFIABLE ->
+                   (* let model = Z3.Solver.get_model solver |> Option.get in
+                      Format.printf "Got a model that should be empty : `%s`\n"
+                        (Z3.Model.to_string model); *)
+                   true
+             in
+             MyQueue.enqueue q genv ans)
     in
 
     (q, myenqueue, cutted)
   in
 
   let on_ground ~span:_ x = Format.asprintf "%a" (GT.fmt Ph.ground) x in
-  let on_logic ~span:_ x = Format.asprintf "%a" (GT.fmt Ph.logic) x in
+  let on_logic ~span:_ x = Format.asprintf "%a" Ph.PPNew.my_logic_pp x in
   let open OCanren in
   let open Mytester in
   let goal ans_var =
+    let cutter q do_cont =
+      debug_var q (flip Ph.reify) (fun p ->
+          let p = match p with [ h ] -> h | _ -> assert false in
+          try
+            (* There we should encode logic formula p to SMT and check that
+                not (I <=> p) is unsat
+            *)
+            Format.printf "encoding to SMT a formula: `%a`\n%!"
+              Ph.PPNew.my_logic_pp p;
+            let candidate = Ph.to_smt_logic_exn bv_size ctx p in
+
+            let q = F.(not (iff candidate Z3Encoded.ph)) in
+            trace_intermediate_candidate candidate;
+            match run_solver q with
+            | Z3.Solver.UNKNOWN ->
+                failwith "Solver should not return UNKNOWN result"
+            | UNSATISFIABLE ->
+                trace_on_success ex_storage solver_count;
+                do_cont === !!false
+            | SATISFIABLE ->
+                let model = Z3.Solver.get_model solver |> Option.get in
+                myenqueue model (apply_model ~model Z3Encoded.ph);
+                do_cont === !!true
+          with HasFreeVars s ->
+            Format.eprintf "Got a phormula with free variables: `%s`\n%!" s;
+            failure)
+    in
     let loop () =
       let rec helper i =
         if i >= MyQueue.size ex_storage then
           let () = Format.printf "i is >= %d\n%!" (MyQueue.size ex_storage) in
-          success
+          fresh repeat (cutter ans_var repeat)
+            (conde
+               [
+                 repeat === !!true &&& helper i; repeat === !!false &&& success;
+               ])
         else
           let _g, env0, is_true = MyQueue.get ex_storage i in
           (* Format.printf "Testing example: '%a'\n%!" EvalPh.Env.pp _g; *)
@@ -353,38 +392,11 @@ let test (evalo : (module Bv.S) -> _) m =
           if Algebra.SS.equal cur_vars free then success else failure)
     in
 
-    let cutter q =
-      debug_var q (flip Ph.reify) (fun p ->
-          let p = match p with [ h ] -> h | _ -> assert false in
-          try
-            (* There we should encode logic formula p to SMT and check that
-                not (I <=> p) is unsat
-            *)
-            Format.printf "encoding to SMT a formula: `%a`\n%!"
-              Ph.PPNew.my_logic_pp p;
-            let candidate = Ph.to_smt_logic_exn ctx p in
-
-            let q = F.(not (iff candidate Z3Encoded.ph)) in
-            trace_intermediate_candidate candidate;
-            match run_solver q with
-            | Z3.Solver.UNKNOWN ->
-                failwith "Solver should not return UNKNOWN result"
-            | UNSATISFIABLE ->
-                trace_on_success ex_storage solver_count;
-                success
-            | SATISFIABLE ->
-                let model = Z3.Solver.get_model solver |> Option.get in
-                myenqueue model (apply_model ~model Z3Encoded.ph);
-                failure
-          with HasFreeVars s ->
-            Format.eprintf "Got a phormula with free variables: `%s`\n%!" s;
-            failure)
-    in
     fresh
       (ph0 ph1 ph2 ph3 a b l0 r0 l1 r1 l2 r2 ans_var2 o3 l3 r3)
       (a === Types.(T.var !!"a"))
       (b === Types.(T.var !!"b"))
-      (* (ph0 === Types.Ph.le b a) *)
+      (ph0 === Types.Ph.le b a)
       (* (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a) *)
       (* (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a) *)
       (* (ph3 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a) *)
@@ -401,14 +413,15 @@ let test (evalo : (module Bv.S) -> _) m =
          (ph1 === Types.Ph.op !!Types.Ph.Le l1 r1)
          (ph2 === Types.Ph.op !!Types.Ph.Le l2 r2)
          (ph3 === Types.Ph.op !!Types.Ph.Le l3 r3) *)
-      (ans_var === Ph.(not (conj_list [ ph0; ph1; ph2; ph3 ])))
-      (loop ()) (ans_var === ans_var2)
-      (* TODO: removing constraint below leads to more examples
-         FIX: do not add duplicate examples.
-      *)
-      (* (enough_variables ans_var) *)
-      (* (EvalPh0.trace_int !!1 "running cutter") *)
-      (cutter ans_var)
+      (ans_var
+      === Ph.(not (conj_list (list_take bv_size [ ph0; ph1; ph2; ph3 ]))))
+      (loop ())
+    (* TODO: removing constraint below leads to more examples
+       FIX: do not add duplicate examples.
+    *)
+    (* (enough_variables ans_var) *)
+    (* (EvalPh0.trace_int !!1 "running cutter") *)
+    (* (cutter ans_var) *)
     (* (EvalPh0.trace_int !!1 "cutter succeeded") *)
   in
   run_r Ph.reify on_logic (Options.max options) q qh ("", goal)

@@ -102,8 +102,8 @@ module N = struct
         end;
     }
 
-  let to_smt ctx xs : Z3.Expr.expr =
-    let (module T), _ = Algebra.to_z3 ctx in
+  let to_smt bv_size ctx xs : Z3.Expr.expr =
+    let (module T), _ = Algebra.to_z3 bv_size ctx in
 
     (* let b = Buffer.create 20 in *)
     (* Buffer.add_string b "#x";
@@ -115,8 +115,8 @@ module N = struct
        T.const_s (Buffer.contents b) *)
     T.const_s @@ string_of_int @@ int_of_ground xs
 
-  let to_smt_logic_exn ctx (xs : Bv.Repr.l) : Z3.Expr.expr =
-    let (module T), _ = Algebra.to_z3 ctx in
+  let to_smt_logic_exn bv_size ctx (xs : Bv.Repr.l) : Z3.Expr.expr =
+    let (module T), _ = Algebra.to_z3 bv_size ctx in
     let acc = ref 0 in
     let module L = OCanren.Std.List in
     let rec iter base = function
@@ -317,8 +317,8 @@ module T = struct
 
     helper
 
-  let to_smt ctx : ground -> _ =
-    let (module T), (module P) = Algebra.to_z3 ctx in
+  let to_smt bv_size ctx : ground -> _ =
+    let (module T), (module P) = Algebra.to_z3 bv_size ctx in
     (* TODO: maybe returned T should already be enriched *)
     let module T = Algebra.EnrichTerm (T) in
     let on_op = function
@@ -332,7 +332,7 @@ module T = struct
     in
 
     let rec helper = function
-      | Const n -> N.to_smt ctx n
+      | Const n -> N.to_smt bv_size ctx n
       | SubjVar s -> T.var s
       | Binop (op, l, r) -> on_op op (helper l) (helper r)
     in
@@ -340,9 +340,9 @@ module T = struct
 
   type ctx = CtxConj | CtxDisj | CtxAny
 
-  let to_smt_logic_exn ctx : logic -> _ =
+  let to_smt_logic_exn bv_size ctx : logic -> _ =
    fun root ->
-    let (module T), _ = Algebra.to_z3 ctx in
+    let (module T), _ = Algebra.to_z3 bv_size ctx in
     let module T = Algebra.EnrichTerm (T) in
     let on_op = function
       | Op.Add -> T.add
@@ -362,7 +362,7 @@ module T = struct
       | Var _ ->
           Format.printf "FIXME: inserting 'a' during SMT encoding...\n";
           T.var "a"
-      | Value (Const n) -> N.to_smt_logic_exn ctx n
+      | Value (Const n) -> N.to_smt_logic_exn bv_size ctx n
       | Value (SubjVar (OCanren.Value s)) -> T.var s
       | Value (Binop (Value op, l, r)) -> on_op op (helper l) (helper r)
     in
@@ -660,18 +660,23 @@ module Ph = struct
 
     helper
 
-  let to_smt_logic_exn ctx : logic -> Z3.Expr.expr =
-    let term = T.to_smt_logic_exn ctx in
-    let _, (module P) = Algebra.to_z3 ctx in
+  let to_smt_logic_exn bv_size ctx : logic -> Z3.Expr.expr =
+    let term = T.to_smt_logic_exn bv_size ctx in
+    let _, (module P) = Algebra.to_z3 bv_size ctx in
 
     let rec helper : logic -> _ = function
       | Value (Op (Var _, _, _)) ->
-          has_free_vars "Var instead of formula %d" __LINE__
+          (* has_free_vars "Var instead of formula %d" __LINE__ *)
+          P.true_
       | Value (Conj (Var _)) ->
-          has_free_vars "Var instead of formula %d" __LINE__
+          (* has_free_vars "Var instead of formula %d" __LINE__ *)
+          P.true_
       | Value (Disj (Var _)) ->
-          has_free_vars "Var instead of formula %d" __LINE__
-      | Var (vidx, _) -> has_free_vars "Var instead of formula %d" __LINE__
+          (* has_free_vars "Var instead of formula %d" __LINE__ *)
+          P.true_
+      | Var (vidx, _) ->
+          (* has_free_vars "Var instead of formula %d" __LINE__ *)
+          P.true_
       | Value True -> P.true_
       | Value (Not l) -> P.not (helper l)
       | Value (Op (Value Eq, l, r)) -> P.eq (term l) (term r)

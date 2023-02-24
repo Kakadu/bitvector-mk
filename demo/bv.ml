@@ -395,7 +395,7 @@ let create width : (module S) =
       assert (w >= 0);
       list_inito w !!0
 
-    let rec looks_like_zero ~pos n =
+    let looks_like_zero ~pos n =
       (* TODO: optimize via memoization and single unification *)
       assert (pos >= 0);
       make_short_zero pos === n
@@ -926,7 +926,7 @@ let create width : (module S) =
         ]
 
     let forallo q relo =
-      let rec helper n acc =
+      let helper n acc =
         if n >= count then acc else relo (build_num n) &&& acc
       in
       helper 0 success
