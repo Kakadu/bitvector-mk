@@ -13,7 +13,7 @@ jobs:
 
     runs-on: ubuntu-22.04
     container:
-      image: kakadu18/ocaml:pltlab
+      image: kakadu18/genui:2022
       options: --user user
 
     steps:
