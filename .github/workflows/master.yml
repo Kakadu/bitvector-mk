@@ -33,6 +33,8 @@ jobs:
       - run: git submodule update --init
       - run: opam pin add ./OCanren --no-action --yes
       - run: opam pin add bitvector-mk . --yes --no-action
+
+      - run: opam install OCanren --yes --deps-only --with-test
       - run: opam install bitvector-mk --yes --deps-only --with-test
       - run: opam install res --yes
 
