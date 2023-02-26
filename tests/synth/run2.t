@@ -1,1 +1,1 @@
-  $ ./test2.exe
+$ ./test2.exe
