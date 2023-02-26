@@ -1,6 +1,7 @@
 [submodule "OCanren"]
 	path = OCanren
-	url = https://github.com/PLTools/OCanren.git
+	url = https://github.com/Kakadu/OCanren.git
+  branch = wildcard-master
 
 [submodule "GT"]
 	path = GT
