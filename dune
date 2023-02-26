@@ -15,15 +15,17 @@
  (wrapped false)
  (preprocess
   (pps
+   ppx_expect
+   ppx_inline_test
    ppx_optcomp
    ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_distrib
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
    OCanren-ppx.ppx_repr
    OCanren-ppx.ppx_fresh
-   OCanren-ppx.ppx_distrib
-   GT.ppx_all
-   ppx_inline_test
-   ;
-   )))
+   GT.ppx_all)))
 
 (executable
  (name ph_test)
@@ -33,12 +35,16 @@
  (libraries impl)
  (preprocess
   (pps
+   ppx_expect
+   ppx_inline_test
    ppx_optcomp
+   ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
    OCanren-ppx.ppx_repr
    OCanren-ppx.ppx_fresh
-   OCanren-ppx.ppx_distrib
-   GT.ppx_all
-   ppx_fail)))
+   GT.ppx_all)))
 
 (library
  (name synth)
@@ -50,19 +56,35 @@
  (libraries OCanren z3 res impl bv mytester)
  (preprocess
   (pps
+   ppx_expect
+   ppx_inline_test
    ppx_optcomp
+   ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_distrib
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
    OCanren-ppx.ppx_repr
    OCanren-ppx.ppx_fresh
-   GT.ppx_all
-   ;
-   )))
+   GT.ppx_all)))
 
 (library
  (name mytester)
  (modules mytester)
- (preprocess
-  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh ppx_expect))
  (flags
   (:standard -rectypes))
  (inline_tests)
- (libraries mtime.clock.os OCanren))
+ (libraries mtime.clock.os OCanren)
+ (preprocess
+  (pps
+   ppx_expect
+   ppx_inline_test
+   ppx_optcomp
+   ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_distrib
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh
+   GT.ppx_all)))

@@ -4,10 +4,38 @@
    (:standard -rectypes))))
 
 (executables
- (names test1 test3)
+ (names test1)
+ (modules test1)
  (libraries synth)
  (preprocess
-  (pps OCanren-ppx.ppx_fresh)))
+  (pps
+   ppx_expect
+   ppx_inline_test
+   ppx_optcomp
+   ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh
+   GT.ppx_all)))
+
+(executables
+ (names test_ex2 test_ex3 test2 test3)
+ (modules test_ex2 test_ex3 test2 test3)
+ (libraries inhabit_ph synth)
+ (preprocess
+  (pps
+   ppx_expect
+   ppx_inline_test
+   ppx_optcomp
+   ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh
+   GT.ppx_all)))
 
 (cram
- (deps test1.exe test3.exe))
+ (deps test1.exe test2.exe test3.exe))

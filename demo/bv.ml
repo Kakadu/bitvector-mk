@@ -12,6 +12,7 @@ module Repr = struct
   type e = int
   type g = e OCanren.Std.List.ground
   type l = e logic OCanren.Std.List.logic
+  (* N.B. low digits in the beginning *)
 
   (* It seems we can't hide these types because
      unifucation with a variable requires l to be seen
@@ -21,15 +22,9 @@ module Repr = struct
   type injected = e OCanren.ilogic OCanren.Std.List.injected
   type n = injected
 
-  let inj g = GT.foldl Std.List.ground (fun acc x -> !!x % acc) (Std.nil ()) g
+  let inj g = GT.foldr Std.List.ground (fun acc x -> !!x % acc) (Std.nil ()) g
   let reify = List.reify OCanren.reify
   let prj_exn = List.prj_exn OCanren.prj_exn
-
-  (* let prjc_exn env : injected -> g =
-     List.prjc
-       (OCanren.prjc (fun _ _ -> failwith "should not happen"))
-       (fun _ _ -> failwith "should not happen")
-       env *)
 
   let ground_of_logic_exn : l -> g =
     let rec on_logic l =
@@ -60,25 +55,33 @@ module Repr = struct
     on_logic
 
   let show xs = GT.(show List.ground @@ show int) xs
-  let pp_logic = GT.(fmt List.logic @@ fmt logic @@ fmt int)
-  let show_logic = Format.asprintf "%a" pp_logic
 
-  let pp_binary ppf (xs : g) =
-    Format.fprintf ppf "0b";
-    let add = Format.fprintf ppf "%c" in
-    GT.foldr Std.List.ground
-      (fun () -> function 0 -> add '0' | 1 -> add '1' | _ -> assert false)
-      () xs
+  (* Show/PP ground *)
+  include struct
+    let pp ppf (xs : g) =
+      Format.fprintf ppf "0b";
+      let add = Format.fprintf ppf "%c" in
+      GT.foldr Std.List.ground
+        (fun () -> function 0 -> add '0' | 1 -> add '1' | _ -> assert false)
+        () xs
 
-  let show_binary n = Format.asprintf "%a" pp_binary n
+    let show_binary n = Format.asprintf "%a" pp n
+  end
 
-  let pp_logic_binary ppf n =
-    try
-      let g = ground_of_logic_exn n in
-      pp_binary ppf g
-    with Failure _ -> pp_logic ppf n
+  (* Show/PP logic *)
+  include struct
+    let rec show_helper acc = function
+      | Var _ -> "..." ^ acc
+      | Value (Std.List.Cons (d, tl)) ->
+          let acc = GT.show OCanren.logic (GT.show GT.int) d ^ acc in
+          show_helper acc tl
+      | Value Nil -> acc
 
-  let show_logic_binary n = Format.asprintf "%a" pp_logic_binary n
+    let pp_logic : _ -> l -> unit =
+     fun ppf xs -> Format.fprintf ppf "0b[%s]" (show_helper "" xs)
+
+    let show_logic xs = Format.sprintf "0b[%s]" (show_helper "" xs)
+  end
 
   let rec eq_exn xs ys =
     match (xs, ys) with
@@ -155,6 +158,7 @@ module type S = sig
   val show_binary : g -> string
   val build_num : int -> n
   val of_int : int -> g
+  val inj_int : int -> injected
   val mod2 : n -> e ilogic -> goal
   val mul2 : n -> n -> goal
   val addo : n -> n -> n -> goal
@@ -202,6 +206,8 @@ let create width : (module S) =
           else Std.List.Cons (b, helper (1 + i) (n / 2))
         in
         helper 0 n
+
+    let inj_int n : injected = Repr.inj (of_int n)
 
     let debug_n : n -> (int logic Std.List.logic list -> goal) -> goal =
      fun n -> debug_var n (fun a b -> OCanren.Std.List.reify OCanren.reify b a)
@@ -806,6 +812,10 @@ let create width : (module S) =
                (out === !!0 % otl)
                (go_left_helper (width - 1) min tl otl last);
            ])
+
+    (* let%expect_test _ =
+       print_endline "asdf";
+       [%expect {| |}] *)
 
     let rotl n out =
       fresh (min tl)

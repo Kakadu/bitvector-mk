@@ -35,10 +35,9 @@ module Repr : sig
     GT.t
 
   val show : g -> string
-  val show_binary : g -> string
+  val pp : Format.formatter -> g -> unit
   val show_logic : l -> string
-  val pp_binary : Format.formatter -> g -> unit
-  val pp_logic_binary : Format.formatter -> l -> unit
+  val pp_logic : Format.formatter -> l -> unit
 end
 
 module type S = sig
@@ -48,6 +47,7 @@ module type S = sig
   val show_binary : g -> string
   val build_num : int -> n
   val of_int : int -> g
+  val inj_int : int -> injected
   val mod2 : n -> e ilogic -> goal
   val mul2 : n -> n -> goal
   val addo : n -> n -> n -> goal

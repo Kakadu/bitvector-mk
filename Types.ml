@@ -12,10 +12,11 @@ module OCanren = struct
           method foldl = GT.foldl OCanren.logic
 
           method compare f a b =
-            (* TODO(Kakadu): WHY? *)
             match (a, b) with
-            | Var _, _ | _, Var _ -> GT.LT
             | Value ax, Value bx -> f ax bx
+            | Value _, Var _ -> GT.LT
+            | Var _, Value _ -> GT.GT
+            | Var (l, _), Var (r, _) -> GT.compare GT.int l r
         end;
     }
 end
@@ -71,14 +72,6 @@ module N = struct
   let reify = Bv.Repr.reify
   let prj_exn = Bv.Repr.prj_exn
   let ground_of_logic : logic -> ground = forget_list (forget_var Fun.id)
-
-  let one : injected =
-    let open OCanren in
-    Std.(!<(!!1))
-
-  let zero : injected =
-    let open OCanren in
-    Std.(!<(!!0))
 
   let int_of_ground (xs : Bv.Repr.g) =
     let _, ans =
@@ -151,20 +144,6 @@ module T = struct
 
   type ground = (ground, Op.ground, N.ground, GT.string) t]
 
-  (* module E = Fmap4 (struct
-       type nonrec ('a, 'b, 'c, 'd) t = ('a, 'b, 'c, 'd) t
-
-       let fmap eta = GT.gmap t eta
-     end) *)
-
-  (* [@@deriving gt ~options:{ show; fmt; gmap }] *)
-
-  (* type logic =
-       (logic, op OCanren.logic, N.logic, GT.string OCanren.logic) t OCanren.logic
-     [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }] *)
-
-  (* type nonrec injected = (ground, logic) injected *)
-
   module PPNew = struct
     let hack fa ppf = function
       | OCanren.Value a -> fa ppf a
@@ -195,12 +174,12 @@ module T = struct
 
     let rec my_ground_pp ppf : ground -> unit =
       pp_algebra my_ground_pp my_pp_op
-        (fun ppf s -> Format.fprintf ppf "%s" (Bv.Repr.show_binary s))
+        (fun ppf s -> Format.fprintf ppf "%s" (Bv.Repr.show s))
         my_pp_name ppf
 
     let rec my_logic_pp ppf : logic -> unit =
       hack
-        (pp_algebra my_logic_pp (hack my_pp_op) Bv.Repr.pp_logic_binary
+        (pp_algebra my_logic_pp (hack my_pp_op) Bv.Repr.pp_logic
            (hack my_pp_name))
         ppf
   end
@@ -208,7 +187,7 @@ module T = struct
   let pp : Format.formatter -> ground -> unit =
     let pp_op = PPNew.my_pp_op in
     let rec helper ppf = function
-      | Const n -> Format.fprintf ppf "%s" (Bv.Repr.show_binary n)
+      | Const n -> Format.fprintf ppf "%a" Bv.Repr.pp n
       | SubjVar s -> Format.pp_print_string ppf s
       | Binop (op, l, r) ->
           Format.fprintf ppf "(%a %a %a)" pp_op op helper l helper r
@@ -461,25 +440,6 @@ module Ph = struct
   type ground =
     (ground, ground OCanren.Std.List.ground, Binop.ground, T.ground) t]
 
-  (* module E = OCanren.Fmap4 (struct
-       type nonrec ('a, 'b, 'c, 'd) t = ('a, 'b, 'c, 'd) t
-
-       let fmap eta = GT.gmap t eta
-     end)
-  *)
-  (* open OCanren *)
-  (* [@@deriving gt ~options:{ show; fmt; gmap }] *)
-
-  (* type logic =
-       (logic, logic OCanren.Std.List.logic, binop OCanren.logic, T.logic) t
-       OCanren.logic
-     [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
-  *)
-  (* type nonrec injected = (ground, logic) OCanren.injected *)
-
-  (* let rec reify env : injected -> logic =
-     E.reify reify (OCanren.Std.List.reify reify) OCanren.reify T.reify env
-  *)
   let true_ : injected = inj True
   let eq a b = inj @@ Op (!!Binop.Eq, a, b)
   let lt a b = inj @@ Op (!!Binop.Lt, a, b)
@@ -489,7 +449,7 @@ module Ph = struct
   let conj_list xs : injected = inj @@ Conj (Std.list Fun.id xs)
   let conj xs = inj @@ Conj xs
   let disj2 a (b : injected) = inj @@ Disj Std.(a % (b % nil ()))
-  let disj a b = inj @@ Disj Std.(a % (b % nil ()))
+  let disj xs = inj @@ Disj xs
   let disj_list xs : injected = inj @@ Disj (Std.list Fun.id xs)
   let not a = inj @@ Not a
 
@@ -765,7 +725,9 @@ module Env = struct
   open OCanren
 
   type ground = (string * T.ground) Std.List.ground
-  type logic = (string OCanren.logic * T.logic) OCanren.logic Std.List.logic
+
+  type logic = (GT.string OCanren.logic * T.logic) OCanren.logic Std.List.logic
+  [@@deriving gt ~plugins:{ fmt; show }]
 
   type injected =
     (string OCanren.ilogic * T.injected) OCanren.ilogic Std.List.injected
@@ -812,6 +774,7 @@ module Env = struct
     Format.fprintf ppf "]"
 
   let show = Format.asprintf "%a" pp
+  let pp_logic = GT.fmt logic
 end
 
 (* ********************************************************************* *)
@@ -840,8 +803,6 @@ let mk_of_term (module BV : Bv.S) =
 
 let mk_of_formula =
   let module P = struct
-    (* open Z3 *)
-
     type rez = Ph.injected
     type t = Conjs of rez list | Disjs of rez list | Final of rez
 

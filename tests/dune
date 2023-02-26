@@ -3,6 +3,47 @@
  (modules Test_bv)
  (inline_tests)
  (libraries bv OCanren)
- (flags (:standard -rectypes -w -33))
+ (flags
+  (:standard -rectypes -w -33))
  (preprocess
-  (pps ppx_expect OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh)))
+  (pps
+   ppx_expect
+   ppx_here
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh)))
+
+(library
+ (name inhabit_ph)
+ (modules inhabit_ph)
+ (libraries bv impl)
+ (wrapped false)
+ (flags
+  (:standard -rectypes -w -33))
+ (preprocess
+  (pps
+   ppx_expect
+   ppx_here
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh)))
+
+(executable
+ (name run_inhabit)
+ (modules run_inhabit)
+ (libraries inhabit_ph)
+ (flags
+  (:standard -rectypes))
+ (preprocess
+  (pps
+   ppx_expect
+   ppx_here
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh)))
+
+(cram
+ (deps run_inhabit.exe))

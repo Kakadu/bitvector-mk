@@ -10,14 +10,20 @@
   (:standard -rectypes))
  (libraries OCanren OCanren.tester)
  ;(instrumentation (backend bisect_ppx))
+ (wrapped false)
  (inline_tests)
  (preprocess
   (pps
+   ppx_expect
+   ppx_inline_test
+   ppx_optcomp
+   ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
    OCanren-ppx.ppx_repr
    OCanren-ppx.ppx_fresh
-   GT.ppx_all
-   ppx_optcomp
-   ppx_inline_test)))
+   GT.ppx_all)))
 
 (executable
  (name bv_demo)
@@ -26,7 +32,17 @@
   (:standard -rectypes))
  (libraries OCanren OCanren.tester bv)
  (preprocess
-  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
+  (pps
+   ppx_expect
+   ppx_inline_test
+   ppx_optcomp
+   ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh
+   GT.ppx_all)))
 
 (library
  (name arithOleg)
@@ -35,7 +51,17 @@
   (:standard -rectypes))
  (libraries OCanren OCanren.tester)
  (preprocess
-  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
+  (pps
+   ppx_expect
+   ppx_inline_test
+   ppx_optcomp
+   ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh
+   GT.ppx_all)))
 
 (executable
  (name arith_demo)
@@ -44,7 +70,17 @@
   (:standard -rectypes))
  (libraries OCanren OCanren.tester arithOleg)
  (preprocess
-  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
+  (pps
+   ppx_expect
+   ppx_inline_test
+   ppx_optcomp
+   ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh
+   GT.ppx_all)))
 
 (executable
  (name d)
@@ -53,4 +89,14 @@
   (:standard -rectypes))
  (libraries OCanren z3)
  (preprocess
-  (pps OCanren-ppx.ppx_repr OCanren-ppx.ppx_fresh GT.ppx)))
+  (pps
+   ppx_expect
+   ppx_inline_test
+   ppx_optcomp
+   ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh
+   GT.ppx_all)))

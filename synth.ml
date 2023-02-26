@@ -125,7 +125,44 @@ let rec list_take n = function
   | h :: tl -> h :: list_take (n - 1) tl
   | [] -> []
 
-let test bv_size (evalo : (module Bv.S) -> _) m =
+let _enough_variables free q =
+  let rec collect_in_term2 acc : Types.T.logic -> _ =
+    GT.foldl OCanren.logic
+      (GT.transform Types.T.t (fun _ ->
+           object
+             inherit
+               [_, _, _, _, _, _] Types.T.foldl_t_t
+                 collect_in_term2
+                 (fun acc _ -> acc)
+                 (fun acc _ -> acc)
+                 (fun acc -> function
+                   | Value x -> Algebra.SS.add x acc
+                   | Var _ -> assert false)
+                 (fun _ _ -> failwith "should not happen")
+           end))
+      acc
+  in
+  let rec collect_in_ph acc : Types.Ph.logic -> _ =
+    GT.foldl OCanren.logic
+      (GT.transform Types.Ph.t (fun _ ->
+           object
+             inherit
+               [_, _, _, _, _, _] Types.Ph.foldl_t_t
+                 collect_in_ph collect_in_ph_list
+                 (fun acc _ -> acc)
+                 collect_in_term2
+                 (fun _ _ -> failwith "should not happen")
+           end))
+      acc
+  and collect_in_ph_list acc = GT.foldl Std.List.logic collect_in_ph acc in
+
+  debug_var q (flip Ph.reify) (fun p ->
+      let p : Types.Ph.logic = match p with [ h ] -> h | _ -> assert false in
+
+      let cur_vars = collect_in_ph Algebra.SS.empty p in
+      if Algebra.SS.equal cur_vars free then success else failure)
+
+let test bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint m =
   let ctx = Z3.mk_context [] in
   let solver = Z3.Solver.mk_simple_solver ctx in
 
@@ -164,7 +201,7 @@ let test bv_size (evalo : (module Bv.S) -> _) m =
           tl
   in *)
   let (module F : Algebra.FORMULA_Z3) = Algebra.z3_of_formula bv_size ctx in
-  let (module BV) = Bv.create bv_size in
+  let ((module BV) as bv) = Bv.create bv_size in
 
   let check_cand candidate =
     let q = F.(not (iff candidate Z3Encoded.ph)) in
@@ -184,22 +221,6 @@ let test bv_size (evalo : (module Bv.S) -> _) m =
               "Predefined answers fits by the opinon of SMT solver!\n%!")
   in
 
-  (* let _ =
-       match Z3Encoded.answer with
-       | None -> ()
-       | Some answ -> (
-           match check_cand answ with
-           | Z3.Solver.UNKNOWN -> assert false
-           | Z3.Solver.SATISFIABLE -> failwith "Proposed answer is not an answer"
-           | Z3.Solver.UNSATISFIABLE ->
-               Format.printf
-                 "Predefined answers fits by the opinon of SMT solver!\n%!")
-     in *)
-  (* let _ =
-       let (module T), (module P) = Types.to_mk (module BV) in
-       let module MkEncoded = I (T) (P) in
-       ()
-     in *)
   let apply_model ph ~model =
     match Z3.Model.eval model ph true with
     | None -> failwith "should not happen"
@@ -217,7 +238,7 @@ let test bv_size (evalo : (module Bv.S) -> _) m =
   in
 
   let q = MyQueue.create () in
-  let ex_storage, myenqueue, pack_of_cut_examples =
+  let ex_storage, myenqueue, _pack_of_cut_examples =
     let _eval m =
       match Z3.Model.eval m Z3Encoded.ph false with
       | None -> failwith "should not happen"
@@ -251,13 +272,7 @@ let test bv_size (evalo : (module Bv.S) -> _) m =
                 else failwith "Bad argument"
               in
               if String.starts_with ~prefix:"#b" estr then wrap (scanf_bin estr)
-              else
-                match estr with
-                (* | "#b00" -> wrap 0
-                   | "#b01" -> wrap 1
-                   | "#b10" -> wrap 2
-                   | "#b11" -> wrap 3 *)
-                | estr -> Scanf.sscanf estr "#x%X" wrap
+              else Scanf.sscanf estr "#x%X" wrap
             with Scanf.Scan_failure s as e ->
               Format.eprintf "Error while parsing a string '%s'\n%!" estr;
               raise e)
@@ -320,6 +335,10 @@ let test bv_size (evalo : (module Bv.S) -> _) m =
   let open Mytester in
   let goal ans_var =
     let cutter q do_cont =
+      (* fresh () *)
+      (* (debug_var ans_var (flip Ph.reify) (fun p ->
+           log "Current candidate = %a\n%!" Ph.PPNew.my_logic_pp p;
+           success)) *)
       debug_var q (flip Ph.reify) (fun p ->
           let p = match p with [ h ] -> h | _ -> assert false in
           try
@@ -346,97 +365,27 @@ let test bv_size (evalo : (module Bv.S) -> _) m =
             Format.eprintf "Got a phormula with free variables: `%s`\n%!" s;
             failure)
     in
-    let loop () =
+    let loop =
       let rec helper i =
-        if i >= MyQueue.size ex_storage then
-          let () = Format.printf "i is >= %d\n%!" (MyQueue.size ex_storage) in
+        let size = MyQueue.size ex_storage in
+        if i >= size then
+          let () = Format.printf "(i=%d) is >= %d\n%!" i size in
           fresh repeat (cutter ans_var repeat)
             (conde
                [
                  repeat === !!true &&& helper i; repeat === !!false &&& success;
                ])
-        else
-          let _g, env0, is_true = MyQueue.get ex_storage i in
-          (* Format.printf "Testing example: '%a'\n%!" EvalPh.Env.pp _g; *)
-          evalo (module BV) env0 ans_var !!is_true
-          (* &&& EvalPh0.trace_bool !!is_true "evalo said" *)
-          (* &&& EvalPh0.trace_ph ans_var "\t\tcurrent answer:" *)
-          &&& helper (1 + i)
+        else kont i
+      and kont i =
+        let _g, env0, is_true = MyQueue.get ex_storage i in
+        (* Format.printf "Testing example: '%a'\n%!" EvalPh.Env.pp _g; *)
+        evalo bv env0 ans_var !!is_true
+        (* &&& EvalPh0.trace_bool !!is_true "evalo said" *)
+        (* &&& EvalPh0.trace_ph ans_var "\t\tcurrent answer:" *)
+        &&& helper (1 + i)
       in
-      helper 0
+      helper
     in
-    let _enough_variables q =
-      let rec collect_in_term2 acc : Types.T.logic -> _ =
-        GT.foldl OCanren.logic
-          (GT.transform Types.T.t (fun _ ->
-               object
-                 inherit
-                   [_, _, _, _, _, _] Types.T.foldl_t_t
-                     collect_in_term2
-                     (fun acc _ -> acc)
-                     (fun acc _ -> acc)
-                     (fun acc -> function
-                       | Value x -> Algebra.SS.add x acc
-                       | Var _ -> assert false)
-                     (fun _ _ -> failwith "should not happen")
-               end))
-          acc
-      in
-      let rec collect_in_ph acc : Types.Ph.logic -> _ =
-        GT.foldl OCanren.logic
-          (GT.transform Types.Ph.t (fun _ ->
-               object
-                 inherit
-                   [_, _, _, _, _, _] Types.Ph.foldl_t_t
-                     collect_in_ph collect_in_ph_list
-                     (fun acc _ -> acc)
-                     collect_in_term2
-                     (fun _ _ -> failwith "should not happen")
-               end))
-          acc
-      and collect_in_ph_list acc = GT.foldl Std.List.logic collect_in_ph acc in
-
-      debug_var q (flip Ph.reify) (fun p ->
-          let p : Types.Ph.logic =
-            match p with [ h ] -> h | _ -> assert false
-          in
-
-          let cur_vars = collect_in_ph Algebra.SS.empty p in
-          if Algebra.SS.equal cur_vars free then success else failure)
-    in
-
-    fresh
-      (ph0 ph1 ph2 ph3 a b l0 r0 l1 r1 l2 r2 ans_var2 o3 l3 r3)
-      (a === Types.(T.var !!"a"))
-      (b === Types.(T.var !!"b"))
-      (ph0 === Types.Ph.le b a)
-      (* (ph1 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 1)) a) *)
-      (* (ph2 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 2)) a) *)
-      (* (ph3 === Types.Ph.le (Types.T.shl b (Types.T.const @@ BV.build_num 3)) a) *)
-      (* (ph0 === Types.Ph.le l0 a) *)
-      (* (ph1 === Types.Ph.le l1 a) *)
-      (* (ph2 === Types.Ph.le l2 a) *)
-      (* (ph3 === Types.Ph.le l3 a) *)
-      (* (ph2 === Types.Ph.le (Types.T.shl b l2) a) *)
-      (* (ph3 === Types.Ph.le (Types.T.shl l3 (Types.T.const @@ BV.build_num 3)) a) *)
-      (* (ph3 === Types.Ph.le (Types.T.shl b r3) a) *)
-      (* (fresh (u v) (r3 =/= Types.T.op !!Types.T.Shl u v)) *)
-      (* (fresh v (r3 === Types.T.const v)) *)
-      (* (ph0 === Types.Ph.op !!Types.Ph.Le l0 r0)
-         (ph1 === Types.Ph.op !!Types.Ph.Le l1 r1)
-         (ph2 === Types.Ph.op !!Types.Ph.Le l2 r2)
-         (ph3 === Types.Ph.op !!Types.Ph.Le l3 r3) *)
-      (ans_var
-      === Ph.(not (conj_list (list_take bv_size [ ph0; ph1; ph2; ph3 ]))))
-      (loop ())
-    (* TODO: removing constraint below leads to more examples
-       FIX: do not add duplicate examples.
-    *)
-    (* (enough_variables ans_var) *)
-    (* (EvalPh0.trace_int !!1 "running cutter") *)
-    (* (cutter ans_var) *)
-    (* (EvalPh0.trace_int !!1 "cutter succeeded") *)
+    (match hint with None -> success | Some h -> h ans_var) &&& loop 0
   in
   run_r Ph.reify on_logic (Options.max options) q qh ("", goal)
-
-(* let () = test EvalPh0.evalo_helper Algebra.ex4 *)

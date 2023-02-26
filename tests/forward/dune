@@ -1,0 +1,24 @@
+(env
+ (dev
+  (flags
+   (:standard -rectypes))))
+
+(executables
+ (names test1)
+ (modules test1)
+ (libraries inhabit_ph)
+ (preprocess
+  (pps
+   ppx_expect
+   ppx_inline_test
+   ppx_optcomp
+   ppx_here
+   ppx_fail
+   OCanren-ppx.ppx_tester
+   OCanren-ppx.ppx_wildcard
+   OCanren-ppx.ppx_repr
+   OCanren-ppx.ppx_fresh
+   GT.ppx_all)))
+
+(cram
+ (deps test1.exe test2.exe test3.exe))

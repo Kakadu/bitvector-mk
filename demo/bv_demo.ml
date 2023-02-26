@@ -133,3 +133,30 @@ let __ _shifts =
          fresh verdict (verdict === !!GT) (compare_helper q r verdict)));
 
   ()
+
+let run_cmp n = run_r OCanren.reify (GT.show OCanren.logic (GT.show Bv.cmp_t)) n
+
+let _ =
+  let (module M) = create 3 in
+  let open M in
+  let run_bv n = run_r Bv.Repr.reify Bv.Repr.show_logic n in
+  [%tester
+    run_cmp (-1) (fun verdict ->
+        fresh q
+          (shiftlo (build_num 1) (build_num 1) q)
+          (compare_helper q (build_num 1) verdict))];
+
+  [%tester run_bv (-1) (fun q -> shiftlo (build_num 1) (build_num 1) q)];
+  [%tester run_bv (-1) (fun q -> shiftlo (build_num 1) (build_num 2) q)];
+
+  ()
+
+let _1 _ =
+  let (module M) = create 2 in
+  let open M in
+  let run_bv n = run_r Bv.Repr.reify Bv.Repr.show_logic n in
+  [%tester run_bv (-1) (fun q -> q === build_num 0)];
+  [%tester run_bv (-1) (fun q -> q === build_num 1)];
+  [%tester run_bv (-1) (fun q -> q === build_num 2)];
+  [%tester run_bv (-1) (fun q -> q === build_num 3)];
+  ()
