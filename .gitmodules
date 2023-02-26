@@ -2,3 +2,9 @@
 	path = OCanren
 	url = https://github.com/PLTools/OCanren.git
 
+[submodule "GT"]
+	path = GT
+	url = https://github.com/PLTools/GT.git
+[submodule "ppx_fail"]
+	path = ppx_fail
+	url = https://github.com/janestreet/ppx_fail.git
