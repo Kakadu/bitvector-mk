@@ -256,6 +256,7 @@ let ex3 =
     module P = EnrichFormula (P)
     module T = EnrichTerm (T)
 
+    (* a is a power of 2 *)
     let info = "example3: exists y. (0<=y) && (a = (1+1) << y)"
 
     let ph =

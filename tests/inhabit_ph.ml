@@ -23,12 +23,10 @@ let trace_helper reifier pp bv fmt =
         | _ -> failwith "Will not happen"))
     fmt
 
-let trace_bv bv fmt = trace_helper Bv.Repr.reify Bv.Repr.pp_logic bv fmt
-
-let trace_term v fmt =
-  trace_helper Types.T.reify Types.T.PPNew.my_logic_pp v fmt
-
-let trace_env v fmt = trace_helper Types.Env.reify Types.Env.pp_logic v fmt
+let trace_bv eta = trace_helper Bv.Repr.reify Bv.Repr.pp_logic eta
+let trace_ph eta = trace_helper Types.Ph.reify Types.Ph.PPNew.my_logic_pp eta
+let trace_term eta = trace_helper Types.T.reify Types.T.PPNew.my_logic_pp eta
+let trace_env eta = trace_helper Types.Env.reify Types.Env.pp_logic eta
 
 let rec evalo bv_impl env ph is_tauto =
   let (module BV : Bv.S) = bv_impl in
@@ -41,7 +39,8 @@ let rec evalo bv_impl env ph is_tauto =
         (a =/= b)
         (Std.pair a b =/= Std.pair (T.const __) (T.const __))
         (* (trace_line [%here]) *)
-        (* (trace_term a "a") (trace_term b "b") *)
+        (* (trace_term a "a") *)
+        (* (trace_term b "b") *)
         (termo bv_impl env a (T.const a2))
         (termo bv_impl env b (T.const b2))
         (* (trace_bv a2 "Left  part of <=") *)
@@ -51,10 +50,13 @@ let rec evalo bv_impl env ph is_tauto =
              cmp_rez === !!Bv.GT &&& (is_tauto === !!false);
              cmp_rez =/= !!Bv.GT &&& (is_tauto === !!true);
            ])
-        (BV.compare_helper a2 b2 cmp_rez);
+        (* (trace_line [%here]) *)
+        (BV.compare_helper a2 b2 cmp_rez)
+      (* (trace_line [%here]) *);
       fresh () (ph === Ph.conj (Std.nil ())) failure;
       fresh (a b h tl arez)
         (ph === Ph.conj (Std.List.cons h tl))
+        (tl === Std.List.cons __ __)
         (h =/= Ph.conj __)
         (* (cut_bad_syntax `Conj h) *)
         (* (trace_ph_list Std.(h % tl) "conjuncts") *)
@@ -65,9 +67,9 @@ let rec evalo bv_impl env ph is_tauto =
         (conde
            [
              arez === !!true
-             (* &&& trace_int !!__LINE__ "call evalo_list" *)
-             &&& conj_list_evalo bv_impl env h tl is_tauto;
-             arez === !!false &&& (is_tauto === !!false);
+             (* &&& trace_line [%here] *)
+             &&& conj_list_evalo bv_impl env ~prev:h tl is_tauto;
+             arez === !!false &&& trace_line [%here] &&& (is_tauto === !!false);
            ]);
       fresh (prev rez)
         (ph === Ph.not prev)
@@ -80,10 +82,12 @@ let rec evalo bv_impl env ph is_tauto =
         (evalo bv_impl env prev rez);
     ]
 
-and disj_list_evalo bv_impl env prev phs is_tauto =
+and disj_list_evalo bv_impl env ~prev phs is_tauto =
   conde
     [
-      phs === Std.nil () &&& (is_tauto === !!true);
+      (* multiple disjunction shoould evaluate end of conjucts as true.
+         It is not related to evaluation of empty disjunction *)
+      phs === Std.nil () &&& (is_tauto === !!false);
       fresh (h tl arez)
         (phs === Std.List.cons h tl)
         (h =/= prev)
@@ -103,19 +107,28 @@ and disj_list_evalo bv_impl env prev phs is_tauto =
         (evalo bv_impl env h arez)
         (conde
            [
-             arez === !!false &&& conj_list_evalo bv_impl env h tl is_tauto;
+             arez === !!false
+             &&& disj_list_evalo bv_impl env ~prev:h tl is_tauto;
              arez === !!true &&& (is_tauto === !!true);
            ]);
     ]
 
-and conj_list_evalo bv_impl env prev phs is_tauto =
+and conj_list_evalo bv_impl env ~prev phs is_tauto =
   conde
     [
-      phs === Std.nil () &&& (is_tauto === !!false);
+      (* multiple conjunction shoould evaluate end of conjucts as true.
+         It is not related to evaluation of empty conjunction *)
+      phs === Std.nil () &&& (is_tauto === !!true);
       fresh (h tl arez)
         (phs === Std.List.cons h tl)
         (h =/= prev)
         (h =/= Ph.conj __)
+        (* (trace_line [%here]) *)
+        (fresh vvv
+           (* forbid 'prev&h' be ' c1 <= vvv & c2 <= vvv' *)
+           (Std.pair prev h
+           =/= Std.pair (Ph.le (T.const __) vvv) (Ph.le (T.const __) vvv)))
+        (* (trace_line [%here]) *)
         (OCanren.structural (Std.pair prev h) (Std.Pair.reify Ph.reify Ph.reify)
            (function
           | Var _ -> failwiths "should not happen"
@@ -128,10 +141,12 @@ and conj_list_evalo bv_impl env prev phs is_tauto =
                       "comparsion have filtered out '%a' and '%a'\n%!"
                       Ph.PPNew.my_logic_pp a Ph.PPNew.my_logic_pp b;
                   false)))
+        (* (trace_line [%here]) *)
+        (* (trace_ph h "conj_list_evalo: 'evalo h' ") *)
         (evalo bv_impl env h arez)
         (conde
            [
-             arez === !!true &&& conj_list_evalo bv_impl env h tl is_tauto;
+             arez === !!true &&& conj_list_evalo bv_impl env ~prev:h tl is_tauto;
              arez === !!false &&& (is_tauto === !!false);
            ]);
     ]
@@ -188,6 +203,12 @@ and termo bv_impl env (t : T.injected) (rez : T.injected) =
      in *)
   conde
     [
+      fresh v
+        (t === T.var v)
+        (Types.Env.lookupo v env rez)
+        (* (trace_term rez "after lookup") *)
+        (* (trace_env env "in the env") *)
+        success;
       conde
         (List.map
            (fun n -> t === rez &&& (t === T.const (BV.build_num n)))
@@ -195,12 +216,6 @@ and termo bv_impl env (t : T.injected) (rez : T.injected) =
       (* t === rez &&& (t === T.const (BV.build_num 1));
          t === rez &&& (t === T.const (BV.build_num 2));
          t === rez &&& (t === T.const (BV.build_num 3)); *)
-      fresh v
-        (t === T.var v)
-        (Types.Env.lookupo v env rez)
-        (* (trace_term rez "after lookup") *)
-        (* (trace_env env "in the env") *)
-        success;
       fresh (l r r0 l2 r2)
         (t === T.shl l r)
         (rez === T.const r0)

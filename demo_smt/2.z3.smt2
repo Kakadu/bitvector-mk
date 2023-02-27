@@ -49,3 +49,13 @@
 
 (check-sat)
 (pop)
+
+(push)
+    (declare-fun five () Int)
+    (declare-fun u () Int)
+    (declare-fun cmp () Bool)
+    (assert (exists ((five Int) (cmp Bool)) (and (= five u)
+                                            (= cmp (< five 1000))
+                                            (= cmp false)  )))
+    (apply (using-params qe :qe-nonlinear true))
+(pop)

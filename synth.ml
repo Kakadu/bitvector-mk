@@ -50,6 +50,7 @@ module MyQueue : sig
   val get : t -> int -> Env.ground * Env.injected * bool
   val size : t -> int
   val report_queue_stats : t -> unit
+  val pp : Format.formatter -> t -> unit
 end = struct
   module Arr = Res.Array
 
@@ -78,6 +79,13 @@ end = struct
   (* let clear q = q := [] *)
 
   let size { arr } = Arr.length arr
+
+  let pp ppf { arr } =
+    Format.fprintf ppf "@[{|";
+    Arr.iter
+      (fun (env, _, b) -> Format.fprintf ppf "%a -> %b; " Env.pp env b)
+      arr;
+    Format.fprintf ppf "]}@]"
 
   [%%if defined TRACE]
 
@@ -347,6 +355,8 @@ let test bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint m =
             *)
             Format.printf "encoding to SMT a formula: `%a`\n%!"
               Ph.PPNew.my_logic_pp p;
+            Format.printf "examples = %a\n%!" MyQueue.pp ex_storage;
+
             let candidate = Ph.to_smt_logic_exn bv_size ctx p in
 
             let q = F.(not (iff candidate Z3Encoded.ph)) in
