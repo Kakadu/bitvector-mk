@@ -138,7 +138,8 @@ and conj_list_evalo bv_impl env ~prev phs is_tauto =
         (h =/= prev)
         (h =/= Ph.conj __)
         (* (trace_line [%here]) *)
-        (*  *)
+        (* Not yet expressible *)
+        (*
         (fresh www
            (* forbid 'prev&h' to be 'c1 <= www & c2 <= www' *)
            (Std.pair prev h
@@ -147,7 +148,7 @@ and conj_list_evalo bv_impl env ~prev phs is_tauto =
            (* forbid 'prev&h' to be 'www <= c1 & www <= c2' *)
            (Std.pair prev h
            =/= Std.pair (Ph.le www (T.const __)) (Ph.le www (T.const __))))
-        (* (trace_line [%here]) *)
+        *)
         (OCanren.structural (Std.pair prev h) (Std.Pair.reify Ph.reify Ph.reify)
            (function
           | Var _ -> failwiths "should not happen"
