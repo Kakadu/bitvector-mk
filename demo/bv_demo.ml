@@ -1,5 +1,4 @@
 open OCanren
-open OCanren.Std
 open Tester
 open Bv
 open Bv.Repr

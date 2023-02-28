@@ -40,11 +40,15 @@
    ppx_optcomp
    ppx_here
    ppx_fail
+   OCanren-ppx.ppx_distrib
    OCanren-ppx.ppx_tester
    OCanren-ppx.ppx_wildcard
    OCanren-ppx.ppx_repr
    OCanren-ppx.ppx_fresh
    GT.ppx_all)))
+
+(cram
+ (deps ph_test.exe))
 
 (library
  (name synth)
