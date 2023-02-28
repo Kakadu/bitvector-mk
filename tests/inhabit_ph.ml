@@ -54,21 +54,37 @@ let rec evalo bv_impl env ph is_tauto =
       fresh () (ph === Ph.conj (Std.nil ())) failure;
       fresh (a b h tl arez)
         (ph === Ph.conj (Std.List.cons h tl))
-        (tl === Std.List.cons __ __)
+        (fresh (u v) (tl === Std.List.cons u v))
         (h =/= Ph.conj __)
         (* (cut_bad_syntax `Conj h) *)
         (* (trace_ph_list Std.(h % tl) "conjuncts") *)
         (* (trace_int !!__LINE__ "call evalo on 1st conjunct") *)
         (* (trace_ph h "head = ")  *)
-        (evalo bv_impl env h arez)
-        (* (trace_bool arez "1st conjunct done") *)
-        (conde
-           [
-             arez === !!true
-             (* &&& trace_line [%here] *)
-             &&& conj_list_evalo bv_impl env ~prev:h tl is_tauto;
-             arez === !!false &&& trace_line [%here] &&& (is_tauto === !!false);
-           ]);
+        (debug_var is_tauto (Fun.flip OCanren.reify) (function
+          | [] | _ :: _ :: _ -> failwith "should not happen"
+          | [ Value true ] ->
+              (* evaluation when phormula should be true *)
+              fresh ()
+                (evalo bv_impl env h is_tauto)
+                (conj_list_evalo bv_impl env ~prev:h tl is_tauto)
+          | [ Value false ] ->
+              (* evaluation when phormula should be false  *)
+              conde
+                [
+                  evalo bv_impl env h is_tauto;
+                  conj_list_evalo bv_impl env ~prev:h tl is_tauto;
+                ]
+          | [ Var _ ] ->
+              (* synthesis *)
+              fresh () (evalo bv_impl env h arez)
+                (conde
+                   [
+                     arez === !!true
+                     &&& conj_list_evalo bv_impl env ~prev:h tl is_tauto;
+                     arez === !!false
+                     &&& trace_line [%here]
+                     &&& (is_tauto === !!false);
+                   ])));
       fresh (prev rez)
         (ph === Ph.not prev)
         (prev =/= Ph.not __)
@@ -122,10 +138,15 @@ and conj_list_evalo bv_impl env ~prev phs is_tauto =
         (h =/= prev)
         (h =/= Ph.conj __)
         (* (trace_line [%here]) *)
-        (fresh vvv
-           (* forbid 'prev&h' be ' c1 <= vvv & c2 <= vvv' *)
+        (*  *)
+        (fresh www
+           (* forbid 'prev&h' to be 'c1 <= www & c2 <= www' *)
            (Std.pair prev h
-           =/= Std.pair (Ph.le (T.const __) vvv) (Ph.le (T.const __) vvv)))
+           =/= Std.pair (Ph.le (T.const __) www) (Ph.le (T.const __) www)))
+        (fresh www
+           (* forbid 'prev&h' to be 'www <= c1 & www <= c2' *)
+           (Std.pair prev h
+           =/= Std.pair (Ph.le www (T.const __)) (Ph.le www (T.const __))))
         (* (trace_line [%here]) *)
         (OCanren.structural (Std.pair prev h) (Std.Pair.reify Ph.reify Ph.reify)
            (function

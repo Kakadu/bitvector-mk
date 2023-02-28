@@ -1,3 +1,3 @@
 open Synth
 
-let () = test 3 EvalPh0.evalo_helper Algebra.ex4
+let () = test 3 Inhabit_ph.evalo Algebra.ex4

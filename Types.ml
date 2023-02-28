@@ -500,7 +500,7 @@ module Ph = struct
           (GT.transform OCanren.Std.List.t (fun fself ->
                object
                  inherit [_, _, _, _, _, _, _, _, _] OCanren.Std.List.t_t
-                 method c_Nil _ _ = ()
+                 method c_Nil ppf _ = Format.fprintf ppf "nil"
 
                  method c_Cons ppf _ h tl =
                    Format.fprintf ppf "%a %a" fa h pp_style_ground tl
@@ -766,12 +766,12 @@ module Env = struct
     helper
 
   let pp ppf (xs : ground) =
-    Format.fprintf ppf "[ ";
+    Format.fprintf ppf "@[(and ";
     (* let (_ : int) = GT.foldl Std.List.ground in *)
     GT.foldl Std.List.ground
-      (fun () (name, t) -> Format.fprintf ppf "%s -> %a; " name T.pp t)
+      (fun () (name, t) -> Format.fprintf ppf "@[(= %s %a)@] " name T.pp t)
       () xs;
-    Format.fprintf ppf "]"
+    Format.fprintf ppf ")@]"
 
   let show = Format.asprintf "%a" pp
   let pp_logic = GT.fmt logic

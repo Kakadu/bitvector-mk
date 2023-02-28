@@ -20,7 +20,13 @@
  (libraries bv impl)
  (wrapped false)
  (flags
-  (:standard -rectypes -w -33))
+  (:standard
+   -rectypes
+   -w
+   -33
+   -dsource
+   ;
+   ))
  (preprocess
   (pps
    ppx_expect

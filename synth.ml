@@ -81,9 +81,12 @@ end = struct
   let size { arr } = Arr.length arr
 
   let pp ppf { arr } =
-    Format.fprintf ppf "@[{|";
+    Format.set_geometry ~margin:1000 ~max_indent:(1000 - 1);
+    Format.fprintf ppf "@[<h>{|";
     Arr.iter
-      (fun (env, _, b) -> Format.fprintf ppf "%a -> %b; " Env.pp env b)
+      (fun (env, _, b) ->
+        if b then Format.fprintf ppf "@[%a@]@ " Env.pp env
+        else Format.fprintf ppf "@[(not %a)@ " Env.pp env)
       arr;
     Format.fprintf ppf "]}@]"
 
@@ -354,8 +357,8 @@ let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
             (* There we should encode logic formula p to SMT and check that
                 not (I <=> p) is unsat
             *)
-            Format.printf "encoding to SMT a formula: `%a`\n%!"
-              Ph.PPNew.my_logic_pp p;
+            Format.printf "encoding to SMT a formula: \027[%dm`%a`\027[0m\n%!"
+              32 Ph.PPNew.my_logic_pp p;
             Format.printf "examples = %a\n%!" MyQueue.pp ex_storage;
 
             let candidate = Ph.to_smt_logic_exn bv_size ctx p in
@@ -381,11 +384,13 @@ let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
         let size = MyQueue.size ex_storage in
         if i >= size then
           let () = Format.printf "(i=%d) is >= %d\n%!" i size in
-          fresh repeat (cutter ans_var repeat)
-            (conde
-               [
-                 repeat === !!true &&& helper i; repeat === !!false &&& success;
-               ])
+          Fresh.one (fun repeat ->
+              cutter ans_var repeat
+              &&& conde
+                    [
+                      repeat === !!true &&& helper i;
+                      repeat === !!false &&& success;
+                    ])
         else kont i
       and kont i =
         let _g, env0, is_true = MyQueue.get ex_storage i in
