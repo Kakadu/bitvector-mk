@@ -8,6 +8,7 @@
   )
   (not (equiv input predi))
   ))
-
-(apply (using-params qe :qe-nonlinear true))
+(check-sat)
+(get-model)
+;(apply (using-params qe :qe-nonlinear true))
 (pop)

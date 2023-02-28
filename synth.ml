@@ -1,22 +1,22 @@
 open Format
 open OCanren
 open Types
+(*
+   module Options = struct
+     type options = { mutable max_answers : int }
 
-module Options = struct
-  type options = { mutable max_answers : int }
+     let max { max_answers } = max_answers
+     let set_max o n = o.max_answers <- n
+     let create () = { max_answers = 1 }
+   end
 
-  let max { max_answers } = max_answers
-  let set_max o n = o.max_answers <- n
-  let create () = { max_answers = 1 }
-end
+   let options = Options.create ()
 
-let options = Options.create ()
-
-let () =
-  Arg.parse
-    [ ("-max", Arg.Int (Options.set_max options), "maximum answers count") ]
-    (fun _ -> Printf.printf "anonymous arguments not supported\n")
-    "usage"
+   let () =
+     Arg.parse
+       [ ("-max", Arg.Int (Options.set_max options), "maximum answers count") ]
+       (fun _ -> Printf.printf "anonymous arguments not supported\n")
+       "usage" *)
 
 [%%define TRACE]
 
@@ -170,7 +170,8 @@ let _enough_variables free q =
       let cur_vars = collect_in_ph Algebra.SS.empty p in
       if Algebra.SS.equal cur_vars free then success else failure)
 
-let test bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint m =
+let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
+    m =
   let ctx = Z3.mk_context [] in
   let solver = Z3.Solver.mk_simple_solver ctx in
 
@@ -398,4 +399,4 @@ let test bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint m =
     in
     (match hint with None -> success | Some h -> h ans_var) &&& loop 0
   in
-  run_r Ph.reify on_logic (Options.max options) q qh ("", goal)
+  run_r Ph.reify on_logic n q qh ("", goal)
