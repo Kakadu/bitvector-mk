@@ -24,7 +24,7 @@
    -rectypes
    -w
    -33
-   -dsource
+   ;-dsource
    ;
    ))
  (preprocess
