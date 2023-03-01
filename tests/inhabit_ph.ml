@@ -166,7 +166,19 @@ and conj_list_evalo bv_impl env ~prev phs is_tauto =
         (evalo bv_impl env h arez)
         (conde
            [
-             arez === !!true &&& conj_list_evalo bv_impl env ~prev:h tl is_tauto;
+             fresh () (arez === !!true)
+               (conj_list_evalo bv_impl env ~prev:h tl is_tauto)
+               (* (fresh www
+                     (* forbid 'prev&h' to be 'c1 <= www & c2 <= www' *)
+                     (Std.pair prev h
+                     =/= Std.pair (Ph.le (T.const __) www) (Ph.le (T.const __) www)
+                     ))
+                  (fresh www
+                     (* forbid 'prev&h' to be 'www <= c1 & www <= c2' *)
+                     (Std.pair prev h
+                     =/= Std.pair (Ph.le www (T.const __)) (Ph.le www (T.const __))
+                     )) *)
+               success;
              arez === !!false &&& (is_tauto === !!false);
            ]);
     ]

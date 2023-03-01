@@ -74,7 +74,11 @@ end = struct
     with Duplicate -> incr q.count
 
   let create () : t = { arr = Arr.empty (); count = ref 0 }
-  let get { arr } = Arr.get arr
+
+  let get { arr } idx =
+    Format.eprintf "idx = %d, length = %d\n%!" idx (Arr.length arr);
+    assert (idx < Arr.length arr);
+    Arr.get arr idx
 
   (* let clear q = q := [] *)
 
@@ -347,37 +351,42 @@ let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
   let open Mytester in
   let goal ans_var =
     let cutter q do_cont =
-      (* fresh () *)
-      (* (debug_var ans_var (flip Ph.reify) (fun p ->
-           log "Current candidate = %a\n%!" Ph.PPNew.my_logic_pp p;
-           success)) *)
-      debug_var q (flip Ph.reify) (fun p ->
-          let p = match p with [ h ] -> h | _ -> assert false in
-          try
-            (* There we should encode logic formula p to SMT and check that
-                not (I <=> p) is unsat
-            *)
-            Format.printf "encoding to SMT a formula: \027[%dm`%a`\027[0m\n%!"
-              32 Ph.PPNew.my_logic_pp p;
-            Format.printf "examples = %a\n%!" MyQueue.pp ex_storage;
+      debug_var ans_var (flip Ph.reify) (function
+        | [ p ] ->
+            Format.printf "Current candidate = %a\n%!" Ph.PPNew.my_logic_pp p;
+            success
+        | _ -> assert false)
+      &&& debug_var q (flip Ph.reify) (fun p ->
+              let p = match p with [ h ] -> h | _ -> assert false in
+              try
+                (* There we should encode logic formula p to SMT and check that
+                    not (I <=> p) is unsat
+                *)
+                Format.printf
+                  "encoding to SMT a formula: \027[%dm`%a`\027[0m\n%!" 32
+                  Ph.PPNew.my_logic_pp p;
+                Format.printf "examples = %a\n%!" MyQueue.pp ex_storage;
 
-            let candidate = Ph.to_smt_logic_exn bv_size ctx p in
+                let candidate = Ph.to_smt_logic_exn bv_size ctx p in
 
-            let q = F.(not (iff candidate Z3Encoded.ph)) in
-            trace_intermediate_candidate candidate;
-            match run_solver q with
-            | Z3.Solver.UNKNOWN ->
-                failwith "Solver should not return UNKNOWN result"
-            | UNSATISFIABLE ->
-                trace_on_success ex_storage solver_count;
-                do_cont === !!false
-            | SATISFIABLE ->
-                let model = Z3.Solver.get_model solver |> Option.get in
-                myenqueue model (apply_model ~model Z3Encoded.ph);
-                do_cont === !!true
-          with HasFreeVars s ->
-            Format.eprintf "Got a phormula with free variables: `%s`\n%!" s;
-            failure)
+                let q = F.(not (iff candidate Z3Encoded.ph)) in
+                trace_intermediate_candidate candidate;
+                match run_solver q with
+                | Z3.Solver.UNKNOWN ->
+                    failwith "Solver should not return UNKNOWN result"
+                | UNSATISFIABLE ->
+                    Format.eprintf "%s %d\n%!" __FILE__ __LINE__;
+                    trace_on_success ex_storage solver_count;
+                    do_cont === !!false
+                | SATISFIABLE ->
+                    let model = Z3.Solver.get_model solver |> Option.get in
+                    myenqueue model (apply_model ~model Z3Encoded.ph);
+                    Format.eprintf "New example added. Queue size = %d\n%!"
+                      (MyQueue.size ex_storage);
+                    do_cont === !!true
+              with HasFreeVars s ->
+                Format.eprintf "Got a phormula with free variables: `%s`\n%!" s;
+                failure)
     in
     let loop =
       let rec helper i =
@@ -386,12 +395,14 @@ let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
           let () = Format.printf "(i=%d) is >= %d\n%!" i size in
           Fresh.one (fun repeat ->
               cutter ans_var repeat
-              &&& conde
-                    [
-                      repeat === !!true &&& helper i;
-                      repeat === !!false &&& success;
-                    ])
-        else kont i
+              &&& disj_2nd_strict
+                    (repeat === !!true
+                    &&& debug_var !!1 (flip OCanren.reify) (function _ ->
+                            assert (i < MyQueue.size ex_storage);
+                            success)
+                    &&& delay (fun () -> kont i))
+                    (repeat === !!false))
+        else fresh () (kont i)
       and kont i =
         let _g, env0, is_true = MyQueue.get ex_storage i in
         (* Format.printf "Testing example: '%a'\n%!" EvalPh.Env.pp _g; *)
