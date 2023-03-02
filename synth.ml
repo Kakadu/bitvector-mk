@@ -76,7 +76,7 @@ end = struct
   let create () : t = { arr = Arr.empty (); count = ref 0 }
 
   let get { arr } idx =
-    Format.eprintf "idx = %d, length = %d\n%!" idx (Arr.length arr);
+    (* Format.eprintf "idx = %d, length = %d\n%!" idx (Arr.length arr); *)
     assert (idx < Arr.length arr);
     Arr.get arr idx
 
@@ -307,7 +307,8 @@ let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
       | UNSATISFIABLE -> failwith "Initial formula is unsat"
       | SATISFIABLE ->
           let model = Z3.Solver.get_model solver |> Option.get in
-          myenqueue model (apply_model Z3Encoded.ph ~model)
+          myenqueue model (apply_model Z3Encoded.ph ~model);
+          Format.printf "starting example = %a\n%!" MyQueue.pp q
     in
     let () =
       let module P = Algebra.EnrichFormula (P) in
@@ -392,7 +393,7 @@ let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
       let rec helper i =
         let size = MyQueue.size ex_storage in
         if i >= size then
-          let () = Format.printf "(i=%d) is >= %d\n%!" i size in
+          (* let () = Format.printf "(i=%d) is >= %d\n%!" i size in *)
           Fresh.one (fun repeat ->
               cutter ans_var repeat
               &&& disj_2nd_strict
@@ -408,8 +409,9 @@ let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
         (* Format.printf "Testing example: '%a'\n%!" EvalPh.Env.pp _g; *)
         evalo bv env0 ans_var !!is_true
         (* &&& EvalPh0.trace_bool !!is_true "evalo said" *)
-        (* &&& EvalPh0.trace_ph ans_var "\t\tcurrent answer:" *)
-        &&& helper (1 + i)
+        (* &&& EvalPh0.trace_ph ans_var "\t\tcurrent answer after %d example(s)"
+              (1 + i) *)
+        &&& delay (fun () -> helper (1 + i))
       in
       helper
     in

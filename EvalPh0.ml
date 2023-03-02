@@ -23,11 +23,14 @@ let trace_bool n fmt =
 
 let trace_ph : Types.Ph.injected -> _ -> _ =
  fun n fmt ->
-  debug_var n (flip Ph.reify) (function
-    | [ f ] ->
-        Format.printf "%s: %a\n%!" (Format.asprintf fmt) Ph.PPNew.my_logic_pp f;
-        success
-    | _ -> assert false)
+  Format.kasprintf
+    (fun msg ->
+      debug_var n (flip Ph.reify) (function
+        | [ f ] ->
+            Format.printf "%s: %a\n%!" msg Ph.PPNew.my_logic_pp f;
+            success
+        | _ -> assert false))
+    fmt
 
 let trace_ph_list n fmt =
   debug_var n
