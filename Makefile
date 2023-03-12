@@ -14,3 +14,7 @@ arith:
 
 clean:
 	@dune clean
+
+freq:
+	sudo cpupower frequency-set --governor performance
+
