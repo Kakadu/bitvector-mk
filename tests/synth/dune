@@ -1,4 +1,7 @@
 (env
+ (release
+  (flags
+   (:standard -rectypes)))
  (dev
   (flags
    (:standard -rectypes))))
