@@ -2,7 +2,7 @@ open OCanren
 open Types
 
 let debug_n : Bv.Repr.n -> (int logic Std.List.logic list -> goal) -> goal =
- fun n -> debug_var n (fun a b -> OCanren.Std.List.reify OCanren.reify b a)
+ fun n -> debug_var n (OCanren.Std.List.reify OCanren.reify)
 
 let trace_my show n fmt =
   debug_n n (function
@@ -14,7 +14,7 @@ let trace_my show n fmt =
 let trace_n n fmt = trace_my Bv.Repr.show_logic n fmt
 
 let trace_bool n fmt =
-  debug_var n (flip OCanren.reify) (function
+  debug_var n OCanren.reify (function
     | [ b ] ->
         Format.printf "%s: %s\n%!" (Format.asprintf fmt)
           (GT.show logic (GT.show GT.bool) b);
@@ -25,7 +25,7 @@ let trace_ph : Types.Ph.injected -> _ -> _ =
  fun n fmt ->
   Format.kasprintf
     (fun msg ->
-      debug_var n (flip Ph.reify) (function
+      debug_var n Ph.reify (function
         | [ f ] ->
             Format.printf "%s: %a\n%!" msg Ph.PPNew.my_logic_pp f;
             success
@@ -33,38 +33,32 @@ let trace_ph : Types.Ph.injected -> _ -> _ =
     fmt
 
 let trace_ph_list n fmt =
-  debug_var n
-    (flip (Std.List.reify Ph.reify))
-    (function
-      | [] -> success
-      | [ f ] ->
-          Format.printf "%s: %s\n%!" (Format.asprintf fmt)
-            (GT.show Std.List.logic (GT.show Ph.logic) f);
-          success
-      | _ -> assert false)
+  debug_var n (Std.List.reify Ph.reify) (function
+    | [] -> success
+    | [ f ] ->
+        Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+          (GT.show Std.List.logic (GT.show Ph.logic) f);
+        success
+    | _ -> assert false)
 
 let trace_cmp n fmt =
   (* trace_my
      (GT.show Std.List.logic (GT.show OCanren.logic (GT.show Bv.cmp_t)))
      n fmt *)
-  debug_var n
-    (fun a b -> OCanren.reify b a)
-    (function
-      | [ n ] ->
-          Format.printf "%s: %s\n%!" (Format.asprintf fmt)
-            ((GT.show OCanren.logic (GT.show Bv.cmp_t)) n);
-          success
-      | _ -> assert false)
+  debug_var n OCanren.reify (function
+    | [ n ] ->
+        Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+          ((GT.show OCanren.logic (GT.show Bv.cmp_t)) n);
+        success
+    | _ -> assert false)
 
 let trace_int n fmt =
-  debug_var n
-    (fun a b -> OCanren.reify b a)
-    (function
-      | [ n ] ->
-          Format.printf "%s: %s\n%!" (Format.asprintf fmt)
-            (GT.show OCanren.logic (GT.show GT.int) n);
-          success
-      | _ -> assert false)
+  debug_var n OCanren.reify (function
+    | [ n ] ->
+        Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+          (GT.show OCanren.logic (GT.show GT.int) n);
+        success
+    | _ -> assert false)
 
 let evalo_helper bv_impl : Env.injected -> Ph.injected -> bool ilogic -> goal =
   let (module BV : Bv.S) = bv_impl in

@@ -7,21 +7,24 @@ let trace_cfg = { trace_order = false }
 let set_trace_order flg = trace_cfg.trace_order <- flg
 
 let trace_line { Lexing.pos_fname; Lexing.pos_lnum } =
-  debug_var !!1 (Fun.flip OCanren.prj_exn) (function
+  debug_var !!1 OCanren.prj_exn (function
     | [ q ] ->
         Format.printf "%s %d\n%!" pos_fname pos_lnum;
         success
-    | _ -> failwith "Will not happen")
+    | _ -> failwith "Will not happen in trace_line")
 
 let trace_helper reifier pp bv fmt =
   Format.kasprintf
     (fun msg ->
-      debug_var bv (Fun.flip reifier) (function
+      debug_var bv reifier (function
         | [ q ] ->
             Format.printf "%s: %a\n%!" msg pp q;
             success
-        | _ -> failwith "Will not happen"))
+        | _ -> failwith "Will not happen in trace_helper"))
     fmt
+
+let trace_cmp eta =
+  trace_helper OCanren.reify (GT.fmt OCanren.logic (GT.fmt Bv.cmp_t)) eta
 
 let trace_bv eta = trace_helper Bv.Repr.reify Bv.Repr.pp_logic eta
 let trace_ph eta = trace_helper Types.Ph.reify Types.Ph.PPNew.my_logic_pp eta
@@ -33,6 +36,7 @@ let terms_tbl : OCanren.tbl = Hashtbl.create 10
 
 let evalo bv_impl =
   let (module BV : Bv.S) = bv_impl in
+  let bv_iconst_0 = BV.build_num 0 in
   let bv_iconst_1 = BV.build_num 1 in
   let bv_iconst_2 = BV.build_num 2 in
   let bv_iconst_3 = BV.build_num 3 in
@@ -40,17 +44,18 @@ let evalo bv_impl =
   let rec evalo env ph is_tauto =
     conde
       [
-        (* ph === Ph.true_ &&& (!!true === is_tauto); *)
         fresh (a b a2 b2 h1 h2 cmp_rez)
+          (* (trace_line [%here]) *)
+          (* (trace_ph ph "evalo arg") *)
           (ph === Ph.le a b)
-          (a =/= b)
-          (Std.pair a b =/= Std.pair (T.const __) (T.const __))
+          (a =/= b &&& (Std.pair a b =/= Std.pair (T.const __) (T.const __)))
           (* (trace_term a "a") *)
           (* (trace_term b "b") *)
+          (* (trace_line [%here]) *)
           (termo env a (T.const a2))
+          (* (trace_line [%here]) *)
           (termo env b (T.const b2))
-          (* (trace_bv a2 "Left  part of <=") *)
-          (* (trace_bv b2 "Right part of <=") *)
+          (* (trace_line [%here]) *)
           (conde
              [
                cmp_rez === !!Bv.GT &&& (is_tauto === !!false);
@@ -58,15 +63,16 @@ let evalo bv_impl =
              ])
           (* (trace_line [%here]) *)
           (BV.compare_helper a2 b2 cmp_rez)
+          (trace_bv a2 "Left  part of <=")
+          (trace_bv b2 "Right part of <=")
+          (trace_cmp cmp_rez "cmp_rez = ")
         (* (trace_line [%here]) *);
         fresh () (ph === Ph.conj (Std.nil ())) failure;
         fresh (a b h tl arez)
           (ph === Ph.conj (Std.List.cons h tl))
           (fresh (u v) (tl === Std.List.cons u v))
           (h =/= Ph.conj __)
-          (* (cut_bad_syntax `Conj h) *)
           (* (trace_ph_list Std.(h % tl) "conjuncts") *)
-          (* (trace_int !!__LINE__ "call evalo on 1st conjunct") *)
           (* (trace_ph h "head = ")  *)
           (debug_var is_tauto (Fun.flip OCanren.reify) (function
             | [] | _ :: _ :: _ -> failwith "should not happen"
@@ -87,6 +93,7 @@ let evalo bv_impl =
                   (conde
                      [
                        arez === !!true
+                       &&& trace_line [%here]
                        &&& conj_list_evalo env ~prev:h tl is_tauto;
                        arez === !!false
                        &&& trace_line [%here]
@@ -105,15 +112,21 @@ let evalo bv_impl =
   and termo env (t : T.injected) (rez : T.injected) =
     conde
       [
+        conde
+          [
+            (* t === rez &&& (t === T.const bv_iconst_0); *)
+            t === rez
+            &&& (t === T.const bv_iconst_1)
+            &&& trace_term rez "before hash_consing"
+            &&& hashcons terms_tbl rez
+            &&& trace_term rez "after hash_consing"
+            (* &&& success *);
+            t === rez &&&& (t === T.const bv_iconst_2);
+            t === rez &&&& (t === T.const bv_iconst_3);
+          ];
         fresh v (t === T.var v) (Types.Env.lookupo v env rez)
         (* (trace_term rez "after lookup") *)
         (* (trace_env env "in the env") *);
-        conde
-          [
-            t === rez &&& (t === T.const bv_iconst_1);
-            t === rez &&& (t === T.const bv_iconst_2);
-            t === rez &&& (t === T.const bv_iconst_3);
-          ];
         fresh (l r r0 l2 r2)
           (t === T.shl l r)
           (rez === T.const r0)
@@ -131,7 +144,9 @@ let evalo bv_impl =
       [
         (* multiple conjunction shoould evaluate end of conjucts as true.
            It is not related to evaluation of empty conjunction *)
-        phs === Std.nil () &&& (is_tauto === !!true);
+        phs === Std.nil ()
+        (*  &&& trace_line [%here] *)
+        &&& (is_tauto === !!true);
         fresh (h tl arez)
           (phs === Std.List.cons h tl)
           (h =/= prev)
@@ -160,8 +175,8 @@ let evalo bv_impl =
                         "comparsion have filtered out '%a' and '%a'\n%!"
                         Ph.PPNew.my_logic_pp a Ph.PPNew.my_logic_pp b;
                     false)))
-          (* (trace_ph h "conj_list_evalo: 'evalo h' ") *)
           (evalo env h arez)
+          (* (trace_line [%here]) *)
           (conde
              [
                fresh () (arez === !!true)

@@ -171,7 +171,7 @@ let _enough_variables free q =
       acc
   and collect_in_ph_list acc = GT.foldl Std.List.logic collect_in_ph acc in
 
-  debug_var q (flip Ph.reify) (fun p ->
+  debug_var q Ph.reify (fun p ->
       let p : Types.Ph.logic = match p with [ h ] -> h | _ -> assert false in
 
       let cur_vars = collect_in_ph Algebra.SS.empty p in
@@ -352,12 +352,12 @@ let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
   let open Mytester in
   let goal ans_var =
     let cutter q do_cont =
-      debug_var ans_var (flip Ph.reify) (function
+      debug_var ans_var Ph.reify (function
         | [ p ] ->
             Format.printf "Current candidate = %a\n%!" Ph.PPNew.my_logic_pp p;
             success
         | _ -> assert false)
-      &&& debug_var q (flip Ph.reify) (fun p ->
+      &&& debug_var q Ph.reify (fun p ->
               let p = match p with [ h ] -> h | _ -> assert false in
               try
                 (* There we should encode logic formula p to SMT and check that

@@ -1,11 +1,15 @@
 [submodule "OCanren"]
 	path = OCanren
 	url = https://github.com/Kakadu/OCanren.git
-  branch = wildcard-master
+	branch = wildcard+bv-2024
+	shallow = true
 
 [submodule "GT"]
 	path = GT
 	url = https://github.com/PLTools/GT.git
+	shallow = true
+
 [submodule "ppx_fail"]
 	path = ppx_fail
 	url = https://github.com/janestreet/ppx_fail.git
+	shallow = true

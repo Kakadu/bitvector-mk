@@ -46,10 +46,10 @@ let rec forget_list :
        (fun fself ->
          object
            inherit [_, 'a, 'b, _, _, _, _, _, _] OCanren.Std.List.t_t
-           method c_Nil () _ = OCanren.Std.List.Nil
+           method c_Nil () _ = []
 
            method c_Cons () _ h tl : _ OCanren.Std.List.ground =
-             OCanren.Std.List.Cons (fa h, forget_list fa tl)
+             fa h :: forget_list fa tl
          end)
        ())
     xs
@@ -127,13 +127,13 @@ module N = struct
 end
 
 module Op = struct
-  [%%ocanren
+  [%%ocanren_inject
   type op = Shl | Lshr | Land | Lor | Mul | Add | Sub
   [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]]
 end
 
 module T = struct
-  [%%ocanren
+  [%%ocanren_inject
   type nonrec ('self, 'op, 'int, 'varname) t =
     | Const of 'int
     | SubjVar of 'varname
@@ -420,7 +420,7 @@ let __ () =
  *)
 
 module Binop = struct
-  [%%ocanren
+  [%%ocanren_inject
   type nonrec t = Eq | Lt | Le
   [@@deriving gt ~options:{ show; fmt; gmap; foldl; compare }]
 
@@ -428,7 +428,7 @@ module Binop = struct
 end
 
 module Ph = struct
-  [%%ocanren
+  [%%ocanren_inject
   type nonrec ('self, 'selflist, 'binop, 'term) t =
     | True
     | Conj of 'selflist
@@ -760,8 +760,8 @@ module Env = struct
 
   let inject : ground -> injected =
     let rec helper = function
-      | Std.List.Nil -> Std.nil ()
-      | Cons ((s, t), tl) -> cons !!s (T.inj t) (helper tl)
+      | [] -> Std.nil ()
+      | (s, t) :: tl -> cons !!s (T.inj t) (helper tl)
     in
     helper
 

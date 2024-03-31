@@ -4,7 +4,7 @@ open OCanren.Std
 [%%define TRACE]
 [%%undef TRACE]
 
-type cmp_t = LT | EQ | GT [@@deriving gt ~options:{ show }]
+type cmp_t = LT | EQ | GT [@@deriving gt ~options:{ show; fmt }]
 
 let int_pow base width = int_of_float (float_of_int base ** float_of_int width)
 
@@ -39,8 +39,8 @@ module Repr = struct
       GT.transform OCanren.Std.List.t
         (fun _ ->
           object
-            method c_Nil () _ = OCanren.Std.List.Nil
-            method c_Cons () _ h tl = OCanren.Std.List.Cons (on_e h, on_logic tl)
+            method c_Nil () _ = []
+            method c_Cons () _ h tl = on_e h :: on_logic tl
           end)
         () lst
     and on_e e =
@@ -202,23 +202,19 @@ let create width : (module S) =
       else
         let rec helper i n =
           let b = n mod 2 in
-          if i >= width then Std.List.Nil
-          else Std.List.Cons (b, helper (1 + i) (n / 2))
+          if i >= width then [] else b :: helper (1 + i) (n / 2)
         in
         helper 0 n
 
     let inj_int n : injected = Repr.inj (of_int n)
 
     let debug_n : n -> (int logic Std.List.logic list -> goal) -> goal =
-     fun n -> debug_var n (fun a b -> OCanren.Std.List.reify OCanren.reify b a)
+     fun n -> debug_var n (OCanren.Std.List.reify OCanren.reify)
 
     let msg pp =
-      debug_var !!1
-        (fun a b -> OCanren.reify b a)
-        (function
-          | _ ->
-              Format.printf "%a" pp ();
-              success)
+      debug_var !!1 OCanren.reify (function _ ->
+          Format.printf "%a" pp ();
+          success)
 
     let msg_here line = msg (fun ppf () -> Format.fprintf ppf "%d\n%!" line)
 
@@ -229,35 +225,38 @@ let create width : (module S) =
             success
         | _ -> assert false)
 
+    let trace_cmp n fmt =
+      debug_var n OCanren.reify (function
+        | [ n ] ->
+            Format.printf "%s: %a\n%!" (Format.asprintf fmt)
+              (GT.fmt OCanren.logic (GT.fmt cmp_t))
+              n;
+            success
+        | _ -> assert false)
+
     let trace_peano n fmt =
-      debug_var n
-        (fun a b -> Std.Nat.reify b a)
-        (function
-          | [ n ] ->
-              Format.printf "%s: %s\n%!" (Format.asprintf fmt)
-                (GT.show Std.Nat.logic n);
-              success
-          | _ -> assert false)
+      debug_var n Std.Nat.reify (function
+        | [ n ] ->
+            Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+              (GT.show Std.Nat.logic n);
+            success
+        | _ -> assert false)
 
     let trace_int n fmt =
-      debug_var n
-        (fun a b -> OCanren.reify b a)
-        (function
-          | [ n ] ->
-              Format.printf "%s: %s\n%!" (Format.asprintf fmt)
-                (GT.show OCanren.logic (GT.show GT.int) n);
-              success
-          | _ -> assert false)
+      debug_var n OCanren.reify (function
+        | [ n ] ->
+            Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+              (GT.show OCanren.logic (GT.show GT.int) n);
+            success
+        | _ -> assert false)
 
     let trace_bool n fmt =
-      debug_var n
-        (fun a b -> OCanren.reify b a)
-        (function
-          | [ n ] ->
-              Format.printf "%s: %s\n%!" (Format.asprintf fmt)
-                (GT.show OCanren.logic (GT.show GT.bool) n);
-              success
-          | _ -> assert false)
+      debug_var n OCanren.reify (function
+        | [ n ] ->
+            Format.printf "%s: %s\n%!" (Format.asprintf fmt)
+              (GT.show OCanren.logic (GT.show GT.bool) n);
+            success
+        | _ -> assert false)
     (* let peano_width : Std.Nat.groundi = Std.Nat.(nat (of_int width)) *)
 
     let rec appendo l s out =
@@ -759,7 +758,13 @@ let create width : (module S) =
                ]);
         ]
 
-    let compare_helper = compare_helper0 width
+    let compare_helper l r rez =
+      fresh ()
+        (trace_n l " compare_helper l")
+        (trace_n r " compare_helper r")
+        (trace_cmp rez " compare_helper rez")
+        (compare_helper0 width l r rez)
+
     let leo a b = fresh rez (rez =/= !!GT) (compare_helper a b rez)
     let lto a b = fresh rez (rez === !!LT) (compare_helper a b rez)
     let gto a b = lto b a

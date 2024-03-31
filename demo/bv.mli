@@ -1,4 +1,4 @@
-type cmp_t = LT | EQ | GT [@@deriving gt ~options:{ show }]
+type cmp_t = LT | EQ | GT [@@deriving gt ~options:{ show; fmt }]
 
 val int_pow : int -> int -> int
 
