@@ -85,8 +85,8 @@ module Repr = struct
 
   let rec eq_exn xs ys =
     match (xs, ys) with
-    | Std.List.Nil, Std.List.Nil -> true
-    | Cons (h1, t1), Cons (h2, t2) -> h1 = h2 && eq_exn t1 t2
+    | [], [] -> true
+    | h1 :: t1, h2 :: t2 -> h1 = h2 && eq_exn t1 t2
     | _ -> failwith "eq_exn: Different length of list"
 
   let g =
@@ -760,9 +760,9 @@ let create width : (module S) =
 
     let compare_helper l r rez =
       fresh ()
-        (trace_n l " compare_helper l")
-        (trace_n r " compare_helper r")
-        (trace_cmp rez " compare_helper rez")
+        (* (trace_n l " compare_helper l") *)
+        (* (trace_n r " compare_helper r") *)
+        (* (trace_cmp rez " compare_helper rez") *)
         (compare_helper0 width l r rez)
 
     let leo a b = fresh rez (rez =/= !!GT) (compare_helper a b rez)

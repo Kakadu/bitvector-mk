@@ -28,5 +28,5 @@ let _ =
         let open Std in
         fresh (env rez)
           (* (env === pair !!"x" __ % (pair !!"y" __ % nil ())) *)
-          (env === Std.List.list [ "x" ** 1; "y" ** 1 ])
+          (env === Std.list Fun.id [ "x" ** 1; "y" ** 1 ])
           (rez === !!true) (evalo bv env ph rez))]

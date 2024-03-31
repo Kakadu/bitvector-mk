@@ -63,9 +63,9 @@ let evalo bv_impl =
              ])
           (* (trace_line [%here]) *)
           (BV.compare_helper a2 b2 cmp_rez)
-          (trace_bv a2 "Left  part of <=")
-          (trace_bv b2 "Right part of <=")
-          (trace_cmp cmp_rez "cmp_rez = ")
+        (* (trace_bv a2 "Left  part of <=") *)
+        (* (trace_bv b2 "Right part of <=") *)
+        (* (trace_cmp cmp_rez "cmp_rez = ") *)
         (* (trace_line [%here]) *);
         fresh () (ph === Ph.conj (Std.nil ())) failure;
         fresh (a b h tl arez)
@@ -74,7 +74,7 @@ let evalo bv_impl =
           (h =/= Ph.conj __)
           (* (trace_ph_list Std.(h % tl) "conjuncts") *)
           (* (trace_ph h "head = ")  *)
-          (debug_var is_tauto (Fun.flip OCanren.reify) (function
+          (debug_var is_tauto OCanren.reify (function
             | [] | _ :: _ :: _ -> failwith "should not happen"
             | [ Value true ] ->
                 (* evaluation when phormula should be true *)
@@ -117,9 +117,9 @@ let evalo bv_impl =
             (* t === rez &&& (t === T.const bv_iconst_0); *)
             t === rez
             &&& (t === T.const bv_iconst_1)
-            &&& trace_term rez "before hash_consing"
+            (* &&& trace_term rez "before hash_consing" *)
             &&& hashcons terms_tbl rez
-            &&& trace_term rez "after hash_consing"
+            (* &&& trace_term rez "after hash_consing" *)
             (* &&& success *);
             t === rez &&&& (t === T.const bv_iconst_2);
             t === rez &&&& (t === T.const bv_iconst_3);

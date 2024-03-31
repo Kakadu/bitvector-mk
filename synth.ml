@@ -266,15 +266,13 @@ let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
     let cutted = ref (Z3.Boolean.mk_true ctx) in
 
     let myenqueue model b =
-      let env =
+      let env : Types.Env.ground =
         Algebra.SS.fold
           (fun name acc ->
             let eans = Z3.Model.eval model (T.var name) true |> Option.get in
             let estr = Z3.Expr.to_string eans in
             try
-              let wrap n =
-                Std.List.Cons ((name, Types.T.Const (BV.of_int n)), acc)
-              in
+              let wrap n = (name, Types.T.Const (BV.of_int n)) :: acc in
               let scanf_bin s =
                 if s.[0] = '#' && s.[1] = 'b' then
                   let len = String.length s in
@@ -292,7 +290,7 @@ let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
             with Scanf.Scan_failure s as e ->
               Format.eprintf "Error while parsing a string '%s'\n%!" estr;
               raise e)
-          free Std.List.Nil
+          free []
       in
 
       trace_new_example env (1 + MyQueue.size q) b;
@@ -398,7 +396,7 @@ let test ?(n = 1) bv_size (evalo : (module Bv.S) -> _ -> Ph.injected -> _) ?hint
               cutter ans_var repeat
               &&& disj_2nd_strict
                     (repeat === !!true
-                    &&& debug_var !!1 (flip OCanren.reify) (function _ ->
+                    &&& debug_var !!1 OCanren.reify (function _ ->
                             assert (i < MyQueue.size ex_storage);
                             success)
                     &&& delay (fun () -> kont i))
