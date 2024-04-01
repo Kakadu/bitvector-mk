@@ -54,8 +54,6 @@ let rec forget_list :
        ())
     xs
 
-let flip f a b = f b a
-
 let failwiths ?(here = Lexing.dummy_pos) ppf =
   let { Lexing.pos_fname; pos_lnum } = here in
   Format.kasprintf

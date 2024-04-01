@@ -25,7 +25,6 @@ let _ =
   let ( ** ) name v = Std.pair !!name (T.const (BV.inj_int v)) in
   [%tester
     run_ph !ans_count (fun ph ->
-        let open Std in
         fresh (env rez)
           (* (env === pair !!"x" __ % (pair !!"y" __ % nil ())) *)
           (env === Std.list Fun.id [ "x" ** 1; "y" ** 1 ])
