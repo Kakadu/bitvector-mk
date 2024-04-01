@@ -3,7 +3,7 @@ open Tester
 open Types
 
 let debug_n : Bv.Repr.n -> (int logic Std.List.logic list -> goal) -> goal =
- fun n -> debug_var n (fun a b -> OCanren.Std.List.reify OCanren.reify b a)
+ fun n -> debug_var n (OCanren.Std.List.reify OCanren.reify)
 
 let trace_bv n fmt =
   debug_n n (function
@@ -170,7 +170,7 @@ let __ () =
   let module Ph = struct
     [@@@ocaml.warning "-34"]
 
-    [%%ocanren
+    [%%ocanren_inject
     type nonrec 'a t = Op of 'a * 'a [@@deriving gt ~options:{ show; gmap }]
     type ground = Term.ground t]
 

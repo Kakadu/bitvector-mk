@@ -83,7 +83,7 @@ let () =
   [%tester
     run_bool 1 (fun rez ->
         fresh (ph env)
-          (env === Std.List.list [ "b" ** 0b1 ])
+          (env === Std.list Fun.id [ "b" ** 0b1 ])
           (ph === Ph.not (Ph.le _b _1))
           (Inhabit_ph.evalo (module BV) env ph rez))];
   ()
